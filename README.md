@@ -96,6 +96,20 @@ There are some other useful metrics printed out at the end of simulation. <br>
 
 Good luck and be a champion! <br>
 
+# 実行手順
+
+Compile の章 -> Run simulation の章で実行すれば良い。
+
+## ポイント
+
+- `make`よりも`make -j$(nproc)`のほうが並列実行できて早い。(多分)
+- `make`でエラーが発生したときは、原因を解決した上で`make clean`を実行してから再度`make`する。
+
 # 変更点
 
 - prefetcher フォルダに signature_path を追加。
+- spp の実装で main 関数があるとシミュレータ実行でエラーを吐くので、main 関数を全てコメントアウトした。
+
+# メモ
+
+- オリジナルの config は、デフォルトの champsim_config.json を適切にオーバーライドするように書く。
