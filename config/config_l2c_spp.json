@@ -1,7 +1,5 @@
 {
-  "prefetcher": {
-    "L2C": {
-      "prefetcher": "signature_path"
-    }
+  "L2C": {
+    "prefetcher": "signature_path"
   }
 }
