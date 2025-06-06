@@ -799,6 +799,11 @@ private:
   uint64_t c_useful = 0;
   uint64_t c_total = 1;
   bool debug = false;
+
+  // プリフェッチの総数をカウント
+  uint64_t total_prefetch_count = 0;
+  // PGCをカウント
+  uint64_t cross_page_prefetch_count = 0;
 };
 
 class CacheData
