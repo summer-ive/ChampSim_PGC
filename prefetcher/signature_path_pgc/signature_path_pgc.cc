@@ -4,9 +4,6 @@
 
 using namespace std;
 
-static uint64_t cross_page_count = 0;
-static map<int, uint64_t> page_diff_hist;
-
 class Table
 {
 public:
