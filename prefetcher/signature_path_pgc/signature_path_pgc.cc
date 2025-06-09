@@ -830,6 +830,8 @@ private:
   uint64_t total_prefetch_count = 0;
   // PGCをカウント
   uint64_t cross_page_prefetch_count = 0;
+  // PGCの距離を集計
+  unordered_map<int, uint64_t> pgc_distance_map;
 };
 
 class CacheData
