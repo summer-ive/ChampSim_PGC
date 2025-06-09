@@ -758,6 +758,11 @@ public:
         preds_set.insert(next_block_number);
         if (!this->is_inside_page(next_offset)) {
           cross_page_prefetch_count++;
+          int page_distance = next_offset / blocks_in_page;
+          if (next_offset < 0 && next_offset % blocks_in_page != 0) {
+            page_distance -= 1;
+          }
+          pgc_distance_map[page_distance]++;
         } // lookaheadによってページ境界を超えた後もプリフェッチを継続させる
         total_prefetch_count++;
       }
