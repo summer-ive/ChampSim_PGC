@@ -674,6 +674,7 @@ public:
   vector<uint64_t> access(uint64_t block_number)
   {
     uint64_t page_number = block_number / this->blocks_in_page;
+    uint64_t initial_page_number = page_number;
     int page_offset = block_number % this->blocks_in_page;
     if (this->debug) {
       cerr << "[SPP] block_number=" << block_number << endl;
@@ -695,6 +696,7 @@ public:
     signature = SignatureTable::update_signature(signature, delta, this->blocks_in_page);
     float path_confidence = 1.0;
     vector<uint64_t> preds;
+    unordered_set<uint64_t> preds_set;
     int current_offset = page_offset;
     int depth = 0;
     if (this->debug) {
@@ -728,12 +730,36 @@ public:
         float prob = prefetch_candidates[i].second;
         if (prob > prefetch_candidates[max_index].second)
           max_index = i;
-        int next_offset = current_offset + delta;
-        if (this->is_inside_page(next_offset)) {
-          preds.push_back(page_number * this->blocks_in_page + next_offset);
-        } else if (this->is_inside_page(current_offset)) {
-          this->global_history_register.insert(signature, prob, delta, current_offset);
+
+        // 有効なメモリ範囲の存在チェック
+        int64_t next_block_number_signed =
+            int64_t(page_number) * this->blocks_in_page + int64_t(current_offset) + int64_t(delta) if (next_block_number_signed < 0);
+        if (next_block_number_signed < 0) {
+          if (this->debug) {
+            cerr << "[SPP_PGC] skip prefetch candidate whose block number < 0" << endl;
+          }
+          continue;
         }
+        // TODO: メモリアドレス上限チェック(必要であれば)
+
+        int next_offset = current_offset + delta;
+        // if (this->is_inside_page(next_offset)) {
+        //   preds.push_back(page_number * this->blocks_in_page + next_offset);
+        // } else if (this->is_inside_page(current_offset)) {
+        //   this->global_history_register.insert(signature, prob, delta, current_offset);
+        // }
+
+        int next_block_number = page_number * this->blocks_in_page + next_offset;
+        if (preds_set.count(next_block_number) > 0 || this->prefetch_filter.find(next_block_number)) {
+          continue;
+        } // プリフェッチをフィルタリング
+
+        preds.push_back(next_block_number);
+        preds_set.insert(next_block_number);
+        if (!this->is_inside_page(next_offset)) {
+          cross_page_prefetch_count++;
+        } // lookaheadによってページ境界を超えた後もプリフェッチを継続させる
+        total_prefetch_count++;
       }
       int delta = prefetch_candidates[max_index].first;
       float prob = prefetch_candidates[max_index].second;
