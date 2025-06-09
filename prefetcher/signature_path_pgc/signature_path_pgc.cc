@@ -729,8 +729,7 @@ public:
           max_index = i;
 
         // 有効なメモリ範囲の存在チェック
-        int64_t next_block_number_signed =
-            int64_t(page_number) * this->blocks_in_page + int64_t(current_offset) + int64_t(delta) if (next_block_number_signed < 0);
+        int64_t next_block_number_signed = int64_t(page_number) * this->blocks_in_page + int64_t(current_offset) + int64_t(delta);
         if (next_block_number_signed < 0) {
           if (this->debug) {
             cerr << "[SPP_PGC] skip prefetch candidate whose block number < 0" << endl;
