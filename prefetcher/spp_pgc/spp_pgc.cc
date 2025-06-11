@@ -655,11 +655,11 @@ public:
   using Super::Super;
 };
 
-class SPP
+class spp_pgc
 {
 public:
-  SPP(int blocks_in_page = 64, int signature_table_size = 256, int pattern_table_size = 512, int prefetch_filter_size = 1024,
-      int global_history_register_size = 8, float prefetch_threshold = 0.25)
+  spp_pgc(int blocks_in_page = 64, int signature_table_size = 256, int pattern_table_size = 512, int prefetch_filter_size = 1024,
+          int global_history_register_size = 8, float prefetch_threshold = 0.25)
       : blocks_in_page(blocks_in_page), signature_table(signature_table_size, blocks_in_page), pattern_table(pattern_table_size, prefetch_threshold),
         prefetch_filter(prefetch_filter_size), global_history_register(global_history_register_size, blocks_in_page)
   {
@@ -674,9 +674,9 @@ public:
     uint64_t initial_page_number = page_number;
     int page_offset = block_number % this->blocks_in_page;
     if (this->debug) {
-      cerr << "[SPP] block_number=" << block_number << endl;
-      cerr << "[SPP] page_number=" << page_number << endl;
-      cerr << "[SPP] page_offset=" << page_offset << endl;
+      cerr << "[spp_pgc] block_number=" << block_number << endl;
+      cerr << "[spp_pgc] page_number=" << page_number << endl;
+      cerr << "[spp_pgc] page_offset=" << page_offset << endl;
     }
     auto sig_delta = this->signature_table.update(page_number, page_offset, &global_history_register);
     if (this->debug) {
@@ -697,27 +697,27 @@ public:
     int current_offset = page_offset;
     int depth = 0;
     if (this->debug) {
-      cerr << "[SPP] start lookahead" << endl;
-      cerr << "[SPP] alpha=" << this->get_alpha() << endl;
+      cerr << "[spp_pgc] start lookahead" << endl;
+      cerr << "[spp_pgc] alpha=" << this->get_alpha() << endl;
     }
     while (true) {
       if (this->debug) {
-        cerr << "[SPP] depth=" << depth << endl;
-        cerr << "[SPP] current_offset=" << current_offset << endl;
-        cerr << "[SPP] path_confidence=" << path_confidence << endl;
-        cerr << "[SPP] signature=" << bitset<12>(signature).to_string() << endl;
+        cerr << "[spp_pgc] depth=" << depth << endl;
+        cerr << "[spp_pgc] current_offset=" << current_offset << endl;
+        cerr << "[spp_pgc] path_confidence=" << path_confidence << endl;
+        cerr << "[spp_pgc] signature=" << bitset<12>(signature).to_string() << endl;
       }
       /* vector of <delta, prob> pairs */
       auto prefetch_candidates = this->pattern_table.get_prefetch_candidates(signature, path_confidence);
       if (this->debug) {
-        cerr << "[SPP] prefetch_candidates=<";
+        cerr << "[spp_pgc] prefetch_candidates=<";
         for (auto& x : prefetch_candidates)
           cerr << "(" << x.first << ", " << x.second << ")";
         cerr << ">" << endl;
       }
       if (prefetch_candidates.empty()) {
         if (this->debug) {
-          cerr << "[SPP] no more prefetch candidates, breaking loop" << endl;
+          cerr << "[spp_pgc] no more prefetch candidates, breaking loop" << endl;
         }
         break;
       }
@@ -926,7 +926,7 @@ private:
   }
 
   int block_size = 64;
-  SPP spp_module;
+  spp_pgc spp_module;
   string name;
   bool debug = false;
   unordered_map<string, uint64_t> stats = {{"Accesses", 0}, {"Misses", 0}, {"Prefetches", 0}, {"Prefetch Hits", 0}, {"Non-useful Prefetches", 0}};
