@@ -1,5 +1,5 @@
 {
   "L2C": {
-    "prefetcher": "signature_path"
+    "prefetcher": "signature_path_pgc"
   }
 }

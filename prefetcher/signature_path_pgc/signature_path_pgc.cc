@@ -797,6 +797,8 @@ public:
     this->pattern_table.set_debug_mode(enable);
   }
 
+  void prefetcher_final_stats() { cout << "出力関数テスト" << endl; }
+
 private:
   void update_prefetch_filter(const vector<uint64_t>& prefetch_blocks)
   {
