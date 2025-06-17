@@ -90,7 +90,7 @@ uint32_t spp_pgc::prefetcher_cache_operate(champsim::address addr, champsim::add
             if constexpr (GHR_ON) {
               // Store this prefetch request in GHR to bootstrap SPP learning when
               // we see a ST miss (i.e., accessing a new page)
-              GHR.update_entry(curr_sig, confidence_q[i], spp::offset_type{pf_addr}, delta_q[i]);
+              GHR.update_entry(curr_sig, confidence_q[i], spp_pgc::offset_type{pf_addr}, delta_q[i]);
             }
           }
 
