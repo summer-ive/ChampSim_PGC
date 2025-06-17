@@ -47,7 +47,12 @@ struct spp_dev : public champsim::modules::prefetcher {
   constexpr static uint32_t GLOBAL_COUNTER_MAX = ((1 << GLOBAL_COUNTER_BIT) - 1);
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
-    using prefetcher::prefetcher;
+  // Statistics variants for PGC simulation
+  uint64_t total_prefetch_count = 0;
+  uint64_t pgc_count = 0;
+  std::unordered_map<int, uint64_t> pgc_distance_map;
+
+  using prefetcher::prefetcher;
   uint32_t prefetcher_cache_operate(champsim::address addr, champsim::address ip, uint8_t cache_hit, bool useful_prefetch, access_type type,
                                     uint32_t metadata_in);
   uint32_t prefetcher_cache_fill(champsim::address addr, long set, long way, uint8_t prefetch, champsim::address evicted_addr, uint32_t metadata_in);
