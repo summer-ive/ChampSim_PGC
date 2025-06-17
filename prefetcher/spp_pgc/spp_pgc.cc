@@ -77,42 +77,42 @@ uint32_t spp_pgc::prefetcher_cache_operate(champsim::address addr, champsim::add
       if (confidence_q[i] >= PF_THRESHOLD) {
         champsim::address pf_addr{champsim::block_number{base_addr} + delta_q[i]};
 
-        champsim::page_number pf_page{pf_addr};
-        if (pf_page == page) { // Prefetch request is in the same physical page
-          if (FILTER.check(pf_addr, ((confidence_q[i] >= FILL_THRESHOLD) ? spp_pgc::SPP_L2C_PREFETCH : spp_pgc::SPP_LLC_PREFETCH))) {
-            total_prefetch_count++;
-            prefetch_line(pf_addr, (confidence_q[i] >= FILL_THRESHOLD), 0); // Use addr (not base_addr) to obey the same physical page boundary
+        if (FILTER.check(pf_addr, ((confidence_q[i] >= FILL_THRESHOLD) ? spp_pgc::SPP_L2C_PREFETCH : spp_pgc::SPP_LLC_PREFETCH))) {
+          total_prefetch_count++;
 
-            if (confidence_q[i] >= FILL_THRESHOLD) {
-              GHR.pf_issued++;
-              if (GHR.pf_issued > GLOBAL_COUNTER_MAX) {
-                GHR.pf_issued >>= 1;
-                GHR.pf_useful >>= 1;
-              }
-              if constexpr (SPP_DEBUG_PRINT) {
-                std::cout << "[ChampSim] SPP L2 prefetch issued GHR.pf_issued: " << GHR.pf_issued << " GHR.pf_useful: " << GHR.pf_useful << std::endl;
-              }
-            }
-
-            if constexpr (SPP_DEBUG_PRINT) {
-              std::cout << "[ChampSim] " << __func__ << " base_addr: " << base_addr << " pf_addr: " << pf_addr;
-              std::cout << " prefetch_delta: " << delta_q[i] << " confidence: " << confidence_q[i];
-              std::cout << " depth: " << i << std::endl;
+          champsim::page_number pf_page{pf_addr};
+          if (pf_page != page) { // Prefetch request is crossing the physical page boundary
+            pgc_count++;
+            auto p0 = page.to<uint64_t>();
+            auto p1 = pf_page.to<uint64_t>();
+            int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
+            pgc_distance_map[page_distance]++;
+            if constexpr (GHR_ON) {
+              // Store this prefetch request in GHR to bootstrap SPP learning when
+              // we see a ST miss (i.e., accessing a new page)
+              GHR.update_entry(curr_sig, confidence_q[i], spp::offset_type{pf_addr}, delta_q[i]);
             }
           }
-        } else { // Prefetch request is crossing the physical page boundary
-          pgc_count++;
-          auto p0 = page.to<uint64_t>();
-          auto p1 = pf_page.to<uint64_t>();
-          int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
-          pgc_distance_map[page_distance]++;
-          if constexpr (GHR_ON) {
-            // Store this prefetch request in GHR to bootstrap SPP learning when
-            // we see a ST miss (i.e., accessing a new page)
-            GHR.update_entry(curr_sig, confidence_q[i], spp_pgc::offset_type{pf_addr}, delta_q[i]);
+
+          prefetch_line(pf_addr, (confidence_q[i] >= FILL_THRESHOLD), 0); // Use addr (not base_addr) to obey the same physical page boundary
+
+          if (confidence_q[i] >= FILL_THRESHOLD) {
+            GHR.pf_issued++;
+            if (GHR.pf_issued > GLOBAL_COUNTER_MAX) {
+              GHR.pf_issued >>= 1;
+              GHR.pf_useful >>= 1;
+            }
+            if constexpr (SPP_DEBUG_PRINT) {
+              std::cout << "[ChampSim] SPP L2 prefetch issued GHR.pf_issued: " << GHR.pf_issued << " GHR.pf_useful: " << GHR.pf_useful << std::endl;
+            }
+          }
+
+          if constexpr (SPP_DEBUG_PRINT) {
+            std::cout << "[ChampSim] " << __func__ << " base_addr: " << base_addr << " pf_addr: " << pf_addr;
+            std::cout << " prefetch_delta: " << delta_q[i] << " confidence: " << confidence_q[i];
+            std::cout << " depth: " << i << std::endl;
           }
         }
-
         do_lookahead = 1;
         pf_q_head++;
       }
@@ -371,7 +371,7 @@ void spp_pgc::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vector<typenam
   if (c_sig[set]) {
     for (uint32_t way = 0; way < PT_WAY; way++) {
       local_conf = (100 * c_delta[set][way]) / c_sig[set];
-      pf_conf = depth ? (_parent->GHR.global_accuracy * c_delta[set][way] / c_sig[set] * lookahead_conf / 100) : local_conf;
+      pf_conf = depth ? (_parent->GHR.global_accuracy * (c_delta[set][way] / c_sig[set]) * (lookahead_conf / 100)) : local_conf;
 
       if (pf_conf >= PF_THRESHOLD) {
         confidence_q[pf_q_tail] = pf_conf;
@@ -397,7 +397,6 @@ void spp_pgc::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vector<typenam
         }
       }
     }
-    pf_q_tail++;
 
     lookahead_conf = max_conf;
     if (lookahead_conf >= PF_THRESHOLD)

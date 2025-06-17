@@ -371,7 +371,7 @@ void spp::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vector<typename of
   if (c_sig[set]) {
     for (uint32_t way = 0; way < PT_WAY; way++) {
       local_conf = (100 * c_delta[set][way]) / c_sig[set];
-      pf_conf = depth ? (_parent->GHR.global_accuracy * c_delta[set][way] / c_sig[set] * lookahead_conf / 100) : local_conf;
+      pf_conf = depth ? (_parent->GHR.global_accuracy * (c_delta[set][way] / c_sig[set]) * (lookahead_conf / 100)) : local_conf;
 
       if (pf_conf >= PF_THRESHOLD) {
         confidence_q[pf_q_tail] = pf_conf;
@@ -397,7 +397,6 @@ void spp::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vector<typename of
         }
       }
     }
-    pf_q_tail++;
 
     lookahead_conf = max_conf;
     if (lookahead_conf >= PF_THRESHOLD)
