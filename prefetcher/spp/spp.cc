@@ -77,8 +77,10 @@ uint32_t spp::prefetcher_cache_operate(champsim::address addr, champsim::address
       if (confidence_q[i] >= PF_THRESHOLD) {
         champsim::address pf_addr{champsim::block_number{base_addr} + delta_q[i]};
 
-        if (champsim::page_number{pf_addr} == page) { // Prefetch request is in the same physical page
+        champsim::page_number pf_page{pf_addr};
+        if (pf_page == page) { // Prefetch request is in the same physical page
           if (FILTER.check(pf_addr, ((confidence_q[i] >= FILL_THRESHOLD) ? spp::SPP_L2C_PREFETCH : spp::SPP_LLC_PREFETCH))) {
+            total_prefetch_count++;
             prefetch_line(pf_addr, (confidence_q[i] >= FILL_THRESHOLD), 0); // Use addr (not base_addr) to obey the same physical page boundary
 
             if (confidence_q[i] >= FILL_THRESHOLD) {
@@ -99,6 +101,11 @@ uint32_t spp::prefetcher_cache_operate(champsim::address addr, champsim::address
             }
           }
         } else { // Prefetch request is crossing the physical page boundary
+          pgc_count++;
+          auto p0 = page.to<uint64_t>();
+          auto p1 = pf_page.to<uint64_t>();
+          int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
+          pgc_distance_map[page_distance]++;
           if constexpr (GHR_ON) {
             // Store this prefetch request in GHR to bootstrap SPP learning when
             // we see a ST miss (i.e., accessing a new page)
