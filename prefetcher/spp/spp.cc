@@ -153,7 +153,14 @@ uint32_t spp::prefetcher_cache_fill(champsim::address addr, long set, long way, 
   return metadata_in;
 }
 
-void spp::prefetcher_final_stats() {}
+void spp::prefetcher_final_stats()
+{
+  std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n";
+  std::cout << "[SPP] page-crossing count: " << pgc_count << "\n";
+  std::cout << "[SPP] page-crossing distances:\n";
+  for (auto& [dist, cnt] : pgc_distance_map)
+    std::cout << "  distance " << dist << ": " << cnt << "\n";
+}
 
 // TODO: Find a good 64-bit hash function
 uint64_t spp::get_hash(uint64_t key)
