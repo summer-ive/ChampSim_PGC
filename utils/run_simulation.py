@@ -9,10 +9,11 @@ import argparse
 NJOBS = 126
 
 # 設定
-TRACES_DIR = Path("/home/caras/summerive/ChampSim/traces/DPC-3")
-FILTER_FILE = Path("/home/caras/summerive/ChampSim/utils/high_mpki_traces.txt")
-LOG_BASE_DIR = Path("/home/caras/summerive/ChampSim/logs")
-BIN_PATH = Path("/home/caras/summerive/ChampSim/bin/champsim")
+BASE_DIR = Path(__file__).parent.parent
+TRACES_DIR = BASE_DIR / "traces" / "DPC-3"
+FILTER_FILE = BASE_DIR / "utils" / "high_mpki_traces.txt"
+LOG_BASE_DIR = BASE_DIR / "logs"
+BIN_PATH = BASE_DIR / "bin" / "champsim"
 CMD_ARGS = ["--warmup-instructions", "200000000", "--simulation-instructions", "500000000"]
 
 
@@ -40,7 +41,7 @@ def main():
     args = parser.parse_args()
 
     # 出力ディレクトリ作成
-    log_dir = LOG_BASE_DIR / args.prefetcher_name
+    log_dir = LOG_BASE_DIR / str(args.prefetcher_name)
     log_dir.mkdir(parents=True, exist_ok=True)
 
     # トレース一覧取得
@@ -55,11 +56,9 @@ def main():
         if trace_file.stem in trace_filter:
             trace_files.append(trace_file)
 
-    args_list = [(trace_file, log_dir) for trace_file in trace_files]
-
     # 並列実行
     with ThreadPoolExecutor(max_workers=NJOBS) as executor:
-        executor.map(run_trace, args_list)
+        executor.map(run_trace, trace_files, [log_dir] * len(trace_files))
 
 
 if __name__ == "__main__":
