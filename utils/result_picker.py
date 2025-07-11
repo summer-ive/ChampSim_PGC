@@ -3,8 +3,9 @@ import os
 import re
 import csv
 
-LOG_DIR: Path = Path("../logs")
-OUTPUT_DIR: Path = LOG_DIR / "extracted"
+INIT_DIR: Path = Path(__file__).parent
+LOG_DIR: Path = INIT_DIR.parent / "logs"
+OUTPUT_DIR: Path = INIT_DIR / "extracted"
 
 
 def pickup(data):
@@ -19,7 +20,7 @@ def pickup(data):
                 if os.path.isfile(target_log_path) and os.path.splitext(target_log_name)[1] == ".log":
                     # ログからデータを抽出
                     target_log_path: Path = LOG_DIR / target_dir_name / target_log_name
-                    trace_name: str = target_log_path.stem
+                    trace: str = target_log_path.stem
                     with open(target_log_path, "r", encoding="utf-8") as f:
                         log_data = f.readlines()
 
@@ -54,7 +55,7 @@ def pickup(data):
                             page_cross_count = int(match.group(1))
 
                     result: dict[str, str | int | float | None] = {
-                        "trace_name": trace_name,
+                        "trace": trace,
                         "ipc": ipc,
                         "instruction_count": instruction_count,
                         "llc_load_mpki": llc_load_mpki,
