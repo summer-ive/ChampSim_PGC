@@ -79,6 +79,7 @@ uint32_t spp_dev::prefetcher_cache_operate(champsim::address addr, champsim::add
 
         if (champsim::page_number{pf_addr} == page) { // Prefetch request is in the same physical page
           if (FILTER.check(pf_addr, ((confidence_q[i] >= FILL_THRESHOLD) ? spp_dev::SPP_L2C_PREFETCH : spp_dev::SPP_LLC_PREFETCH))) {
+            total_prefetch_count++;
             prefetch_line(pf_addr, (confidence_q[i] >= FILL_THRESHOLD), 0); // Use addr (not base_addr) to obey the same physical page boundary
 
             if (confidence_q[i] >= FILL_THRESHOLD) {
@@ -146,7 +147,7 @@ uint32_t spp_dev::prefetcher_cache_fill(champsim::address addr, long set, long w
   return metadata_in;
 }
 
-void spp_dev::prefetcher_final_stats() {}
+void spp_dev::prefetcher_final_stats() { std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n"; }
 
 // TODO: Find a good 64-bit hash function
 uint64_t spp_dev::get_hash(uint64_t key)
