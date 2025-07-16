@@ -160,14 +160,14 @@ uint32_t spp_dev_pgc::prefetcher_cache_fill(champsim::address addr, long set, lo
   return metadata_in;
 }
 
-void spp_dev_pgc::prefetcher_final_stats()
+void spp_dev::prefetcher_final_stats()
 {
   std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n";
-  std::cout << "[SPP] page-crossing count: " << pgc_count << "\n";
+  std::cout << "[SPP] unfiltered page-crossing count: " << pgc_count_all << "\n";
+  std::cout << "[SPP] page-crossing count: " << pgc_count_filtered << "\n";
   std::cout << "[SPP] page-crossing distances:\n";
   for (auto& [dist, cnt] : pgc_distance_map)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
-  std::cout << "[SPP] useful pgc count: " << pgc_useful_count << "\n";
 }
 
 // TODO: Find a good 64-bit hash function
