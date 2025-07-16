@@ -83,6 +83,13 @@ uint32_t spp_dev_pgc::prefetcher_cache_operate(champsim::address addr, champsim:
           champsim::page_number pf_page{pf_addr};
           if (pf_page != page) { // Prefetch request is crossing the physical page boundary
             pgc_count++;
+            auto cache_line = champsim::block_number{pf_addr};
+            // ChampSimではハッシュ関数を用いてプリフェッチフィルタのスロット割当を行う。
+            // ハッシュ値のうち、下位からREMAINDER_BIT分はタグに、そこから上位のQUOTIENT_BIT分をインデクシングに使用。
+            uint64_t hash = get_hash(cache_line.to<uint64_t>());
+            uint32_t q = (hash >> REMAINDER_BIT) & ((1 << QUOTIENT_BIT) - 1);
+            pgc_entry[q] = true;
+
             auto p0 = page.to<uint64_t>();
             auto p1 = pf_page.to<uint64_t>();
             int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
@@ -475,8 +482,15 @@ bool spp_dev_pgc::PREFETCH_FILTER::check(champsim::address check_addr, FILTER_RE
   case spp_dev_pgc::L2C_DEMAND:
     if ((remainder_tag[quotient] == remainder) && (useful[quotient] == 0)) {
       useful[quotient] = 1;
-      if (valid[quotient])
+      if (valid[quotient]) {
         _parent->GHR.pf_useful++; // This cache line was prefetched by SPP and actually used in the program
+
+        // If this slot is derived from PGC, then count up PGC-useful.
+        if (_parent->pgc_entry[quotient]) {
+          _parent->pgc_useful_count++;
+          _parent->pgc_entry[quotient] = false; // Forbid double count of PGC-useful.
+        }
+      }
 
       if constexpr (SPP_DEBUG_PRINT) {
         std::cout << "[FILTER] " << __func__ << " set useful for check_addr: " << check_addr << " cache_line: " << cache_line;

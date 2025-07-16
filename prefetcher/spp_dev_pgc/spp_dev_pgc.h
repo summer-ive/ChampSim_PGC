@@ -50,7 +50,9 @@ struct spp_dev_pgc : public champsim::modules::prefetcher {
   // Statistics variants for PGC simulation
   uint64_t total_prefetch_count = 0;
   uint64_t pgc_count = 0;
+  uint64_t pgc_useful_count = 0;
   std::unordered_map<int, uint64_t> pgc_distance_map;
+  bool pgc_entry[FILTER_SET] = {false};
 
   using prefetcher::prefetcher;
   uint32_t prefetcher_cache_operate(champsim::address addr, champsim::address ip, uint8_t cache_hit, bool useful_prefetch, access_type type,
