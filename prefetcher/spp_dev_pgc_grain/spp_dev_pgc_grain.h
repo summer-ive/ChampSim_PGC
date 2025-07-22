@@ -25,6 +25,9 @@ struct spp_dev_pgc_grain : public champsim::modules::prefetcher {
   constexpr static unsigned SIG_BIT = 12;
   constexpr static uint32_t SIG_MASK = ((1 << SIG_BIT) - 1);
   constexpr static unsigned SIG_DELTA_BIT = 7;
+  // This parameter is used to change the size of signature table granularity.
+  // The size of ST grain affects the accuracy of prefetch and ipc in result.
+  constexpr static unsigned SIG_UNIT_BIT = 12;
 
   // Pattern table parameters
   constexpr static std::size_t PT_SET = 512;
@@ -67,14 +70,14 @@ struct spp_dev_pgc_grain : public champsim::modules::prefetcher {
   static uint64_t get_hash(uint64_t key);
 
   struct block_in_page_extent : champsim::dynamic_extent {
-    block_in_page_extent() : dynamic_extent(champsim::data::bits{LOG2_PAGE_SIZE}, champsim::data::bits{LOG2_BLOCK_SIZE}) {}
+    block_in_page_extent() : dynamic_extent(champsim::data::bits{SIG_UNIT_BIT}, champsim::data::bits{LOG2_BLOCK_SIZE}) {}
   };
   using offset_type = champsim::address_slice<block_in_page_extent>;
 
   class SIGNATURE_TABLE
   {
     struct tag_extent : champsim::dynamic_extent {
-      tag_extent() : dynamic_extent(champsim::data::bits{ST_TAG_BIT + LOG2_PAGE_SIZE}, champsim::data::bits{LOG2_PAGE_SIZE}) {}
+      tag_extent() : dynamic_extent(champsim::data::bits{ST_TAG_BIT + SIG_UNIT_BIT}, champsim::data::bits{SIG_UNIT_BIT}) {}
     };
 
   public:

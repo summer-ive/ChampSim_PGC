@@ -163,6 +163,7 @@ uint32_t spp_dev_pgc_grain::prefetcher_cache_fill(champsim::address addr, long s
 
 void spp_dev_pgc_grain::prefetcher_final_stats()
 {
+  std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
   std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n";
   std::cout << "[SPP] page-crossing count: " << pgc_count << "\n";
   std::cout << "[SPP] page-crossing distances:\n";
