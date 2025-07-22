@@ -110,6 +110,20 @@ Compile の章 -> Run simulation の章で実行すれば良い。
 - prefetcher フォルダに signature_path を追加。
 - spp の実装で main 関数があるとシミュレータ実行でエラーを吐くので、main 関数を全てコメントアウトした。
 
+# プリフェッチャの解説
+
+- 矢野さんの Slack では SPP の実装にバグがあるとのこと。具体的な内容は不明。
+  - 古いバージョンの ChampSim における spp_dev ファイルであるため、現存するバグであるかは不明。
+- spp_dev_pgc は PGC を一律で全許可する SPP。
+- spp_dev_pgc_adj は、PGC を実行する際に、PGC 先のページが仮想アドレス上で連続するかを確認し、連続性が確認できた場合のみ PGC を実行するもの。
+  - 現在実装中。
+  - 本来は理想的なシミュレーションに際してこの機能が必要。
+    - むやみに全てプリフェッチさせるのはキャッシュ汚染の元になり IPC をむしろ低下させる。
+  - ChampSim が仮想アドレスと物理アドレスのマッピングをどのようにシミュレートしているかを調べる必要がある。
+    - トレースには物理アドレスのアクセス情報しか載っていない？この LLM の回答が正しいか要検証。
+- spp_dev_pgc_grain は、SPP 標準の Signature Table のシグネチャ管理粒度が 4KB なので、このサイズを変更することができるようにしている。
+
 # メモ
 
+- ChampSim の実装は提案論文である"The Championship Simulator: Architectural Simulation for Education and Competition"にある程度記されているため、シミュレータを使う前にこちらを参照するのが懸命かもしれない。
 - オリジナルの config は、デフォルトの champsim_config.json を適切にオーバーライドするように書く。
