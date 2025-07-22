@@ -28,6 +28,7 @@ def pickup(data):
                     instruction_count: int | None = None
                     llc_load_miss: int | None = None
                     llc_load_mpki: float | None = None
+                    st_unit_size: float | None = None
                     prefetch_count: int | None = None
                     page_cross_count: int | None = None
 
@@ -46,6 +47,10 @@ def pickup(data):
                                 else None
                             )
 
+                        match = re.search(r"\[SPP\] signature-table unit size: 2^(\d+)", line)
+                        if match is not None:
+                            st_unit_size = int(match.group(1))
+
                         match = re.search(r"\[SPP\] total prefetches: (\d+)", line)
                         if match is not None:
                             prefetch_count = int(match.group(1))
@@ -60,6 +65,8 @@ def pickup(data):
                         "instruction_count": instruction_count,
                         "llc_load_mpki": llc_load_mpki,
                     }
+                    if st_unit_size is not None:
+                        result["st_unit_size"] = st_unit_size
                     if prefetch_count is not None:
                         result["prefetch_count"] = prefetch_count
                     if page_cross_count is not None:
