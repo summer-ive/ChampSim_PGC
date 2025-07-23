@@ -5,6 +5,7 @@ namespace test
 {
 struct pref_cache_operate_interface {
   champsim::address addr;
+  champsim::address v_addr;
   champsim::address ip;
   uint8_t cache_hit;
   bool useful_prefetch;
