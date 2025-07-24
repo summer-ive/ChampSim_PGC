@@ -266,7 +266,7 @@ public:
     }
 
     void impl_prefetcher_initialize() final;
-    [[nodiscard]] uint32_t impl_prefetcher_cache_operate(champsim::address addr, , champsim::address v_addr, champsim::address ip, bool cache_hit,
+    [[nodiscard]] uint32_t impl_prefetcher_cache_operate(champsim::address addr, champsim::address v_addr, champsim::address ip, bool cache_hit,
                                                          bool useful_prefetch, access_type type, uint32_t metadata_in) final;
     [[nodiscard]] uint32_t impl_prefetcher_cache_fill(champsim::address addr, long set, long way, bool prefetch, champsim::address evicted_addr,
                                                       uint32_t metadata_in) final;

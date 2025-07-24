@@ -1,5 +1,5 @@
-#ifndef SPP_DEV_PGC_H
-#define SPP_DEV_PGC_H
+#ifndef spp_dev_pgc_grain_adj_ADJ_H
+#define spp_dev_pgc_grain_adj_ADJ_H
 
 #include <cstdint>
 #include <vector>
@@ -8,7 +8,7 @@
 #include "modules.h"
 #include "msl/lru_table.h"
 
-struct spp_dev_pgc : public champsim::modules::prefetcher {
+struct spp_dev_pgc_grain_adj : public champsim::modules::prefetcher {
 
   // SPP functional knobs
   constexpr static bool LOOKAHEAD_ON = true;
@@ -25,6 +25,9 @@ struct spp_dev_pgc : public champsim::modules::prefetcher {
   constexpr static unsigned SIG_BIT = 12;
   constexpr static uint32_t SIG_MASK = ((1 << SIG_BIT) - 1);
   constexpr static unsigned SIG_DELTA_BIT = 7;
+  // This parameter is used to change the size of signature table granularity.
+  // The size of ST grain affects the accuracy of prefetch and ipc in result.
+  constexpr static unsigned SIG_UNIT_BIT = 12;
 
   // Pattern table parameters
   constexpr static std::size_t PT_SET = 512;
@@ -67,18 +70,18 @@ struct spp_dev_pgc : public champsim::modules::prefetcher {
   static uint64_t get_hash(uint64_t key);
 
   struct block_in_page_extent : champsim::dynamic_extent {
-    block_in_page_extent() : dynamic_extent(champsim::data::bits{LOG2_PAGE_SIZE}, champsim::data::bits{LOG2_BLOCK_SIZE}) {}
+    block_in_page_extent() : dynamic_extent(champsim::data::bits{SIG_UNIT_BIT}, champsim::data::bits{LOG2_BLOCK_SIZE}) {}
   };
   using offset_type = champsim::address_slice<block_in_page_extent>;
 
   class SIGNATURE_TABLE
   {
     struct tag_extent : champsim::dynamic_extent {
-      tag_extent() : dynamic_extent(champsim::data::bits{ST_TAG_BIT + LOG2_PAGE_SIZE}, champsim::data::bits{LOG2_PAGE_SIZE}) {}
+      tag_extent() : dynamic_extent(champsim::data::bits{ST_TAG_BIT + SIG_UNIT_BIT}, champsim::data::bits{SIG_UNIT_BIT}) {}
     };
 
   public:
-    spp_dev_pgc* _parent;
+    spp_dev_pgc_grain_adj* _parent;
     using tag_type = champsim::address_slice<tag_extent>;
 
     bool valid[ST_SET][ST_WAY];
@@ -104,7 +107,7 @@ struct spp_dev_pgc : public champsim::modules::prefetcher {
   class PATTERN_TABLE
   {
   public:
-    spp_dev_pgc* _parent;
+    spp_dev_pgc_grain_adj* _parent;
     typename offset_type::difference_type delta[PT_SET][PT_WAY];
     uint32_t c_delta[PT_SET][PT_WAY], c_sig[PT_SET];
 
@@ -127,7 +130,7 @@ struct spp_dev_pgc : public champsim::modules::prefetcher {
   class PREFETCH_FILTER
   {
   public:
-    spp_dev_pgc* _parent;
+    spp_dev_pgc_grain_adj* _parent;
     uint64_t remainder_tag[FILTER_SET];
     bool valid[FILTER_SET], // Consider this as "prefetched"
         useful[FILTER_SET]; // Consider this as "used"
@@ -147,7 +150,7 @@ struct spp_dev_pgc : public champsim::modules::prefetcher {
   class GLOBAL_REGISTER
   {
   public:
-    spp_dev_pgc* _parent;
+    spp_dev_pgc_grain_adj* _parent;
     // Global counters to calculate global prefetching accuracy
     uint32_t pf_useful, pf_issued;
     uint32_t global_accuracy; // Alpha value in Section III. Equation 3

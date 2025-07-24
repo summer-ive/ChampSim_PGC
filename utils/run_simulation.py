@@ -10,7 +10,7 @@ NJOBS = 126
 
 # 設定
 BASE_DIR = Path(__file__).parent.parent
-TRACES_DIR = BASE_DIR / "traces" / "DPC-3"
+TRACES_DIR = BASE_DIR.parent / "traces" / "dp3_traces"
 FILTER_FILE = BASE_DIR / "utils" / "high_mpki_traces.txt"
 LOG_BASE_DIR = BASE_DIR / "logs"
 BIN_PATH = BASE_DIR / "bin" / "champsim"
