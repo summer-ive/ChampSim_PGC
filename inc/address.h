@@ -480,7 +480,7 @@ public:
    * Otherwise, the extent will be statically-sized.
    */
   template <typename SUB_EXTENT>
-  [[nodiscard]] auto slice(SUB_EXTENT subextent) const noexcept(is_static&& detail::extent_is_static<SUB_EXTENT>)
+  [[nodiscard]] auto slice(SUB_EXTENT subextent) const noexcept(is_static && detail::extent_is_static<SUB_EXTENT>)
   {
     auto new_ext = relative_extent(extent, subextent);
     return address_slice<decltype(new_ext)>{new_ext, value >> to_underlying(subextent.lower)};

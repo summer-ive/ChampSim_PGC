@@ -27,12 +27,49 @@ void spp_dev_pgc_grain_adj::prefetcher_initialize()
   GHR._parent = this;
 }
 
+bool spp_dev_pgc_grain_adj::is_adjacent_on_virtual(champsim::address addr, champsim::address v_addr, champsim::address pf_addr)
+{
+  champsim::page_number pf_ppage{pf_addr};
+  champsim::page_number cur_ppage{addr};
+  champsim::page_number cur_vpage{v_addr};
+
+  auto delta = static_cast<long long>(pf_ppage) - static_cast<long long>(cur_ppage);
+  const long long step = (delta > 0) ? 1 : -1;
+
+  if (delta == 0)
+    return true;
+
+  auto init_ppage = vmem->va_to_pa(0, cur_vpage).first;
+  assert(init_ppage == cur_ppage);
+
+  while (delta != 0) {
+    auto adj_vpage = cur_vpage + step;                   // page_numberの加減算が適切に定義されているかチェック。
+    auto adj_ppage = vmem->va_to_pa(0, adj_vpage).first; // マルチコア対応には第一引数にCPU番号を渡す必要あり
+
+    const long long diff = static_cast<long long>(adj_ppage) - static_cast<long long>(cur_ppage);
+    if (diff != step)
+      return false;
+
+    cur_vpage = adj_vpage;
+    cur_ppage = adj_ppage;
+    delta -= step;
+  }
+
+  if (cur_ppage == pf_ppage) {
+    return true;
+  } else {
+    assert("The target physical page address doesn't match the incremented physical page address.");
+    return false;
+  }
+}
+
 void spp_dev_pgc_grain_adj::prefetcher_cycle_operate() {}
 
 uint32_t spp_dev_pgc_grain_adj::prefetcher_cache_operate(champsim::address addr, champsim::address v_addr, champsim::address ip, uint8_t cache_hit,
                                                          bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
   champsim::page_number page{addr};
+  champsim::page_number v_page{v_addr};
   uint32_t last_sig = 0, curr_sig = 0, depth = 0;
   std::vector<uint32_t> confidence_q(intern_->MSHR_SIZE);
 
@@ -65,6 +102,7 @@ uint32_t spp_dev_pgc_grain_adj::prefetcher_cache_operate(champsim::address addr,
 
   // Stage 3: Start prefetching
   auto base_addr = addr;
+  auto base_vaddr = v_addr;
   uint32_t lookahead_conf = 100, pf_q_head = 0, pf_q_tail = 0;
   uint8_t do_lookahead = 0;
 
@@ -76,13 +114,35 @@ uint32_t spp_dev_pgc_grain_adj::prefetcher_cache_operate(champsim::address addr,
     for (uint32_t i = pf_q_head; i < pf_q_tail; i++) {
       if (confidence_q[i] >= PF_THRESHOLD) {
         champsim::address pf_addr{champsim::block_number{base_addr} + delta_q[i]};
+        champsim::address pf_vaddr{champsim::block_number{base_vaddr} + delta_q[i]};
 
         if (FILTER.check(pf_addr, ((confidence_q[i] >= FILL_THRESHOLD) ? spp_dev_pgc_grain_adj::SPP_L2C_PREFETCH : spp_dev_pgc_grain_adj::SPP_LLC_PREFETCH))) {
           total_prefetch_count++;
+          if (confidence_q[i] >= FILL_THRESHOLD) {
+            l2c_prefetch_count++;
+          } else {
+            llc_prefetch_count++;
+          }
 
           champsim::page_number pf_page{pf_addr};
+          champsim::page_number base_page{base_addr};
           if (pf_page != page) { // Prefetch request is crossing the physical page boundary
             pgc_count++;
+
+            if (pf_page != base_page) {
+              true_pgc_count++;
+              if (!is_adjacent_on_virtual(base_addr, base_vaddr, pf_addr)) {
+                discarded_pgc_count++;
+                continue;
+              }
+            }
+
+            // 現在のルックアヘッド起点のvaを保持・更新しておく。
+            // 上のpage_distanceはトリガーとなったページアドレス(page)からの距離なので、その点に注意。
+            // ルックアヘッドの起点ページからいくつ離れたページが対象かを算出し、1ずつvaをずらしながらpaの連続性を確認していく。
+            // va->paにはva_to_pa的な関数があるはず。
+            // 途中で途切れていることがわかったらその時点でpgcをキャンセルし、統計のカウントを加算しておく。
+
             auto cache_line = champsim::block_number{pf_addr};
             // ChampSimではハッシュ関数を用いてプリフェッチフィルタのスロット割当を行う。
             // ハッシュ値のうち、下位からREMAINDER_BIT分はタグに、そこから上位のQUOTIENT_BIT分をインデクシングに使用。
@@ -94,6 +154,7 @@ uint32_t spp_dev_pgc_grain_adj::prefetcher_cache_operate(champsim::address addr,
             auto p1 = pf_page.to<uint64_t>();
             int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
             pgc_distance_map[page_distance]++;
+
             if constexpr (GHR_ON) {
               // Store this prefetch request in GHR to bootstrap SPP learning when
               // we see a ST miss (i.e., accessing a new page)
@@ -129,6 +190,7 @@ uint32_t spp_dev_pgc_grain_adj::prefetcher_cache_operate(champsim::address addr,
     if (lookahead_way < PT_WAY) {
       uint32_t set = get_hash(curr_sig) % PT_SET;
       base_addr += (PT.delta[set][lookahead_way] << LOG2_BLOCK_SIZE);
+      base_vaddr += (PT.delta[set][lookahead_way] << LOG2_BLOCK_SIZE);
 
       // PT.delta uses a 7-bit sign magnitude representation to generate
       // sig_delta
@@ -165,7 +227,11 @@ void spp_dev_pgc_grain_adj::prefetcher_final_stats()
 {
   std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
   std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n";
+  std::cout << "[SPP] l2c prefetches: " << l2c_prefetch_count << "\n";
+  std::cout << "[SPP] llc prefetches: " << llc_prefetch_count << "\n";
   std::cout << "[SPP] page-crossing count: " << pgc_count << "\n";
+  std::cout << "[SPP] true page-crossing count: " << true_pgc_count << "\n";
+  std::cout << "[SPP] discarded page-crossing count: " << discarded_pgc_count << "\n";
   std::cout << "[SPP] page-crossing distances:\n";
   for (auto& [dist, cnt] : pgc_distance_map)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
