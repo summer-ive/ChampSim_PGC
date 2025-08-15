@@ -153,7 +153,10 @@ CMD ["/bin/bash"]
 
 したらば Docker イメージを作成。
 ホストマシンのファイルは後でマウントする。したがって処理を軽量化するためにビルドコンテキストは dockerfile が入っているディレクトリに指定している。
-`docker build --build-arg UNAME=$(id -un) --build-arg GNAME=$(id -gn) --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t "$(id -un):champsim-pgc.yyyymmdd" -f /home/caras/summerive/dockerfiles/Dockerfile /home/caras/summerive/dockerfiles`
+
+```
+docker build --build-arg UNAME=$(id -un) --build-arg GNAME=$(id -gn) --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t "$(id -un):champsim-pgc.yyyymmdd" -f /home/caras/summerive/dockerfiles/Dockerfile /home/caras/summerive/dockerfiles
+```
 
 Docker イメージからコンテナを立ち上げる。
 `docker run -it --rm \
