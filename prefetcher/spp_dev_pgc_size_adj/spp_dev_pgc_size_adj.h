@@ -1,5 +1,5 @@
-#ifndef spp_dev_pgc_grain_adj_ADJ_H
-#define spp_dev_pgc_grain_adj_ADJ_H
+#ifndef spp_dev_pgc_size_adj_H
+#define spp_dev_pgc_size_adj_H
 
 #include <cstdint>
 #include <vector>
@@ -7,8 +7,9 @@
 #include "cache.h"
 #include "modules.h"
 #include "msl/lru_table.h"
+#include "vmem.h"
 
-struct spp_dev_pgc_grain_adj : public champsim::modules::prefetcher {
+struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
 
   // SPP functional knobs
   constexpr static bool LOOKAHEAD_ON = true;
@@ -61,7 +62,14 @@ struct spp_dev_pgc_grain_adj : public champsim::modules::prefetcher {
   std::unordered_map<int, uint64_t> pgc_distance_map;
   bool pgc_entry[FILTER_SET] = {false};
 
+  VirtualMemory* vmem = nullptr;
+  uint32_t core_id = 0;
   bool is_adjacent_on_virtual(champsim::address addr, champsim::address v_addr, champsim::address pf_addr);
+  void set_translation_ctx(VirtualMemory* _vmem, uint32_t _core_id)
+  {
+    vmem = _vmem;
+    core_id = _core_id;
+  };
 
   using prefetcher::prefetcher;
   uint32_t prefetcher_cache_operate(champsim::address addr, champsim::address v_addr, champsim::address ip, uint8_t cache_hit, bool useful_prefetch,
@@ -87,7 +95,7 @@ struct spp_dev_pgc_grain_adj : public champsim::modules::prefetcher {
     };
 
   public:
-    spp_dev_pgc_grain_adj* _parent;
+    spp_dev_pgc_size_adj* _parent;
     using tag_type = champsim::address_slice<tag_extent>;
 
     bool valid[ST_SET][ST_WAY];
@@ -113,7 +121,7 @@ struct spp_dev_pgc_grain_adj : public champsim::modules::prefetcher {
   class PATTERN_TABLE
   {
   public:
-    spp_dev_pgc_grain_adj* _parent;
+    spp_dev_pgc_size_adj* _parent;
     typename offset_type::difference_type delta[PT_SET][PT_WAY];
     uint32_t c_delta[PT_SET][PT_WAY], c_sig[PT_SET];
 
@@ -136,7 +144,7 @@ struct spp_dev_pgc_grain_adj : public champsim::modules::prefetcher {
   class PREFETCH_FILTER
   {
   public:
-    spp_dev_pgc_grain_adj* _parent;
+    spp_dev_pgc_size_adj* _parent;
     uint64_t remainder_tag[FILTER_SET];
     bool valid[FILTER_SET], // Consider this as "prefetched"
         useful[FILTER_SET]; // Consider this as "used"
@@ -156,7 +164,7 @@ struct spp_dev_pgc_grain_adj : public champsim::modules::prefetcher {
   class GLOBAL_REGISTER
   {
   public:
-    spp_dev_pgc_grain_adj* _parent;
+    spp_dev_pgc_size_adj* _parent;
     // Global counters to calculate global prefetching accuracy
     uint32_t pf_useful, pf_issued;
     uint32_t global_accuracy; // Alpha value in Section III. Equation 3
