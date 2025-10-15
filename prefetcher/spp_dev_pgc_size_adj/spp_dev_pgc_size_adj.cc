@@ -3,6 +3,8 @@
 #include <cassert>
 #include <iostream>
 
+#include "prefetcher_helper.h"
+
 void spp_dev_pgc_size_adj::prefetcher_initialize()
 {
   std::cout << "Initialize SIGNATURE TABLE" << std::endl;
@@ -33,21 +35,22 @@ bool spp_dev_pgc_size_adj::is_adjacent_on_virtual(champsim::address addr, champs
   champsim::page_number cur_ppage{addr};
   champsim::page_number cur_vpage{v_addr};
 
-  auto delta = static_cast<long long>(pf_ppage) - static_cast<long long>(cur_ppage);
-  const long long step = (delta > 0) ? 1 : -1;
-
-  if (delta == 0)
+  if (pf_ppage == cur_ppage)
     return true;
+  const long long step = (pf_ppage > cur_ppage) ? 1 : -1;
+  long long delta = 0;
+  while (pf_ppage - delta != cur_ppage) {
+    delta += step;
+  }
 
-  auto init_ppage = champsim::gen_environment.vmem->va_to_pa(core_id, cur_vpage).first;
+  auto init_ppage = va_to_pa_ideal(intern_->cpu, cur_vpage);
   assert(init_ppage == cur_ppage);
 
   while (delta != 0) {
-    auto adj_vpage = cur_vpage + step;                         // page_numberの加減算が適切に定義されているかチェック。
-    auto adj_ppage = vmem->va_to_pa(core_id, adj_vpage).first; // マルチコア対応には第一引数にCPU番号を渡す必要あり
+    auto adj_vpage = cur_vpage + step;
+    auto adj_ppage = va_to_pa_ideal(intern_->cpu, adj_vpage);
 
-    const long long diff = static_cast<long long>(adj_ppage) - static_cast<long long>(cur_ppage);
-    if (diff != step)
+    if (adj_ppage - step != cur_ppage)
       return false;
 
     cur_vpage = adj_vpage;

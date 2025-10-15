@@ -61,15 +61,7 @@ struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
   uint64_t pgc_useful_count = 0;
   std::unordered_map<int, uint64_t> pgc_distance_map;
   bool pgc_entry[FILTER_SET] = {false};
-
-  VirtualMemory* vmem = nullptr;
-  uint32_t core_id = 0;
   bool is_adjacent_on_virtual(champsim::address addr, champsim::address v_addr, champsim::address pf_addr);
-  void set_translation_ctx(VirtualMemory* _vmem, uint32_t _core_id)
-  {
-    vmem = _vmem;
-    core_id = _core_id;
-  };
 
   using prefetcher::prefetcher;
   uint32_t prefetcher_cache_operate(champsim::address addr, champsim::address v_addr, champsim::address ip, uint8_t cache_hit, bool useful_prefetch,
