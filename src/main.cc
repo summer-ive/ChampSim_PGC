@@ -52,9 +52,13 @@ const unsigned LOG2_BLOCK_SIZE = champsim::lg2(BLOCK_SIZE);
 const unsigned LOG2_PAGE_SIZE = champsim::lg2(PAGE_SIZE);
 
 #ifndef CHAMPSIM_TEST_BUILD
+
+configured_environment gen_environment{};
+champsim::page_number va_to_pa_ideal(uint32_t cpu_num, champsim::page_number vaddr) { return gen_environment.vmem.va_to_pa(cpu_num, vaddr).first; }
+
 int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 {
-  configured_environment gen_environment{};
+  // configured_environment gen_environment{};
 
   CLI::App app{"A microarchitecture simulator for research and education"};
 
