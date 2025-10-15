@@ -302,7 +302,7 @@ public:
 
   // NOLINTBEGIN(readability-make-member-function-const): legacy modules use non-const hooks
   void impl_prefetcher_initialize() const;
-  [[nodiscard]] uint32_t impl_prefetcher_cache_operate(champsim::address addr, champsim::address v_addr, champsim::address ip, bool cache_hit,
+  [[nodiscard]] uint32_t impl_prefetcher_cache_operate(uint32_t cpu, champsim::address addr, champsim::address v_addr, champsim::address ip, bool cache_hit,
                                                        bool useful_prefetch, access_type type, uint32_t metadata_in) const;
   [[nodiscard]] uint32_t impl_prefetcher_cache_fill(champsim::address addr, long set, long way, bool prefetch, champsim::address evicted_addr,
                                                     uint32_t metadata_in) const;
