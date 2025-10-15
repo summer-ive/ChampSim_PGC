@@ -52,16 +52,16 @@ struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
   // Statistics variants for PGC simulation
-  uint64_t total_prefetch_count = 0; // total count of prefetch
-  uint64_t l2c_prefetch_count = 0;   // total count of l2c prefetch
-  uint64_t llc_prefetch_count = 0;   // total count of llc prefetch
-  uint64_t pgc_count = 0;            // pgc among all prefetch
-  uint64_t true_pgc_count = 0;       // count of narrowly defined pgc including discarded ones
-  uint64_t discarded_pgc_count = 0;  // discarded pgc due to discontinuity on the virtual memory address
+  uint64_t total_prefetch_count = 0;        // total count of prefetch
+  uint64_t l2c_prefetch_count = 0;          // total count of l2c prefetch
+  uint64_t llc_prefetch_count = 0;          // total count of llc prefetch
+  uint64_t pgc_count = 0;                   // pgc among all prefetch
+  uint64_t true_pgc_count = 0;              // count of narrowly defined pgc including discarded ones
+  uint64_t discarded_pgc_request_count = 0; // discarded pgc request due to discontinuity on the virtual memory address
   uint64_t pgc_useful_count = 0;
   std::unordered_map<int, uint64_t> pgc_distance_map;
   bool pgc_entry[FILTER_SET] = {false};
-  bool is_adjacent_on_virtual(champsim::address addr, champsim::address v_addr, champsim::address pf_addr);
+  bool is_adjacent_in_virtual(champsim::address addr, champsim::address v_addr, champsim::address pf_addr);
 
   using prefetcher::prefetcher;
   uint32_t prefetcher_cache_operate(champsim::address addr, champsim::address v_addr, champsim::address ip, uint8_t cache_hit, bool useful_prefetch,

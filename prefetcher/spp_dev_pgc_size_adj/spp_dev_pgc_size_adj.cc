@@ -29,11 +29,11 @@ void spp_dev_pgc_size_adj::prefetcher_initialize()
   GHR._parent = this;
 }
 
-bool spp_dev_pgc_size_adj::is_adjacent_on_virtual(champsim::address addr, champsim::address v_addr, champsim::address pf_addr)
+bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(champsim::address addr, champsim::address v_addr, champsim::address pf_addr)
 {
-  champsim::page_number pf_ppage{pf_addr};
   champsim::page_number cur_ppage{addr};
   champsim::page_number cur_vpage{v_addr};
+  champsim::page_number pf_ppage{pf_addr};
 
   if (pf_ppage == cur_ppage)
     return true;
@@ -120,25 +120,18 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(champsim::address addr, 
         champsim::address pf_vaddr{champsim::block_number{base_vaddr} + delta_q[i]};
 
         if (FILTER.check(pf_addr, ((confidence_q[i] >= FILL_THRESHOLD) ? spp_dev_pgc_size_adj::SPP_L2C_PREFETCH : spp_dev_pgc_size_adj::SPP_LLC_PREFETCH))) {
-          total_prefetch_count++;
-          if (confidence_q[i] >= FILL_THRESHOLD) {
-            l2c_prefetch_count++;
-          } else {
-            llc_prefetch_count++;
-          }
 
           champsim::page_number pf_page{pf_addr};
           champsim::page_number base_page{base_addr};
           if (pf_page != page) { // Prefetch request is crossing the physical page boundary
-            pgc_count++;
-
             if (pf_page != base_page) {
-              true_pgc_count++;
-              if (!is_adjacent_on_virtual(base_addr, base_vaddr, pf_addr)) {
-                discarded_pgc_count++;
+              if (!is_adjacent_in_virtual(base_addr, base_vaddr, pf_addr)) {
+                discarded_pgc_request_count++;
                 continue;
               }
+              true_pgc_count++;
             }
+            pgc_count++;
 
             // 現在のルックアヘッド起点のvaを保持・更新しておく。
             // 上のpage_distanceはトリガーとなったページアドレス(page)からの距離なので、その点に注意。
@@ -163,6 +156,13 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(champsim::address addr, 
               // we see a ST miss (i.e., accessing a new page)
               GHR.update_entry(curr_sig, confidence_q[i], spp_dev_pgc_size_adj::offset_type{pf_addr}, delta_q[i]);
             }
+          }
+
+          total_prefetch_count++;
+          if (confidence_q[i] >= FILL_THRESHOLD) {
+            l2c_prefetch_count++;
+          } else {
+            llc_prefetch_count++;
           }
 
           prefetch_line(pf_addr, (confidence_q[i] >= FILL_THRESHOLD), 0); // Use addr (not base_addr) to obey the same physical page boundary
@@ -234,8 +234,8 @@ void spp_dev_pgc_size_adj::prefetcher_final_stats()
   std::cout << "[SPP] llc prefetches: " << llc_prefetch_count << "\n";
   std::cout << "[SPP] page-crossing count: " << pgc_count << "\n";
   std::cout << "[SPP] true page-crossing count: " << true_pgc_count << "\n";
-  std::cout << "[SPP] allowed true page-crossing count: " << (true_pgc_count - discarded_pgc_count) << "\n";
-  std::cout << "[SPP] discarded page-crossing count: " << discarded_pgc_count << "\n";
+  std::cout << "[SPP] allowed true page-crossing count: " << (true_pgc_count - discarded_pgc_request_count) << "\n";
+  std::cout << "[SPP] discarded page-crossing request count: " << discarded_pgc_request_count << "\n";
   std::cout << "[SPP] page-crossing distances:\n";
   for (auto& [dist, cnt] : pgc_distance_map)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
