@@ -98,7 +98,7 @@ void VirtualMemory::ppage_pop()
   if (available_ppages() == 0) {
     fmt::print("[VMEM] WARNING: Out of physical memory, freeing ppages\n");
     populate_pages();
-    shuffle_pages();
+    // shuffle_pages();
   }
 }
 
