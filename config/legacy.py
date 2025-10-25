@@ -45,8 +45,8 @@ pref_variant_data = [
         "prefetcher_cache_operate",
         (
             ("uint32_t", "trigger_cpu"),
-            ("uint64_t", "addr"),
-            ("uint64_t", "v_addr"),
+            ("uint64_t", "trigger_paddr"),
+            ("uint64_t", "trigger_vaddr"),
             ("uint64_t", "ip"),
             ("uint8_t", "cache_hit"),
             ("bool", "useful_prefetch"),

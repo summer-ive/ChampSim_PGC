@@ -1,7 +1,7 @@
-#include "spp_dev_pgc_grain.h"
-
 #include <cassert>
 #include <iostream>
+
+#include "spp_dev_pgc_grain.h"
 
 void spp_dev_pgc_grain::prefetcher_initialize()
 {
@@ -29,10 +29,10 @@ void spp_dev_pgc_grain::prefetcher_initialize()
 
 void spp_dev_pgc_grain::prefetcher_cycle_operate() {}
 
-uint32_t spp_dev_pgc_grain::prefetcher_cache_operate(champsim::address addr, champsim::address v_addr, champsim::address ip, uint8_t cache_hit,
-                                                     bool useful_prefetch, access_type type, uint32_t metadata_in)
+uint32_t spp_dev_pgc_grain::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr,
+                                                     champsim::address ip, uint8_t cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
-  champsim::page_number page{addr};
+  champsim::page_number page{trigger_paddr};
   uint32_t last_sig = 0, curr_sig = 0, depth = 0;
   std::vector<uint32_t> confidence_q(intern_->MSHR_SIZE);
 
@@ -47,24 +47,24 @@ uint32_t spp_dev_pgc_grain::prefetcher_cache_operate(champsim::address addr, cha
   GHR.global_accuracy = GHR.pf_issued ? ((100 * GHR.pf_useful) / GHR.pf_issued) : 0;
 
   if constexpr (SPP_DEBUG_PRINT) {
-    std::cout << std::endl << "[ChampSim] " << __func__ << " addr: " << addr;
+    std::cout << std::endl << "[ChampSim] " << __func__ << " trigger_paddr: " << trigger_paddr;
     std::cout << " page: " << page << std::endl;
   }
 
   // Stage 1: Read and update a sig stored in ST
   // last_sig and delta are used to update (sig, delta) correlation in PT
   // curr_sig is used to read prefetch candidates in PT
-  ST.read_and_update_sig(addr, last_sig, curr_sig, delta);
+  ST.read_and_update_sig(trigger_paddr, last_sig, curr_sig, delta);
 
   // Also check the prefetch filter in parallel to update global accuracy counters
-  FILTER.check(addr, spp_dev_pgc_grain::L2C_DEMAND);
+  FILTER.check(trigger_paddr, spp_dev_pgc_grain::L2C_DEMAND);
 
   // Stage 2: Update delta patterns stored in PT
   if (last_sig)
     PT.update_pattern(last_sig, delta);
 
   // Stage 3: Start prefetching
-  auto base_addr = addr;
+  auto base_addr = trigger_paddr;
   uint32_t lookahead_conf = 100, pf_q_head = 0, pf_q_tail = 0;
   uint8_t do_lookahead = 0;
 

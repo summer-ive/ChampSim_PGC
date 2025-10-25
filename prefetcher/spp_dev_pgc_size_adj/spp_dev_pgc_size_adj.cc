@@ -29,12 +29,9 @@ void spp_dev_pgc_size_adj::prefetcher_initialize()
   GHR._parent = this;
 }
 
-bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::address trigger_vaddr,
-                                                  champsim::address pf_addr) // TODO: Change argument type from champsim::address to champsim::page_number
+bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
 {
-  const champsim::page_number trigger_vpage{trigger_vaddr};
   const champsim::page_number trigger_ppage{va_to_pa_ideal(trigger_cpu, trigger_vpage)};
-  const champsim::page_number pf_ppage{pf_addr};
 
   if (pf_ppage == trigger_ppage)
     return true;
@@ -69,11 +66,11 @@ bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim
 
 void spp_dev_pgc_size_adj::prefetcher_cycle_operate() {}
 
-uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address addr, champsim::address v_addr, champsim::address ip,
-                                                        uint8_t cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
+uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr,
+                                                        champsim::address ip, uint8_t cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
-  champsim::page_number page{addr};
-  champsim::page_number v_page{v_addr};
+  const champsim::page_number trigger_ppage{trigger_paddr};
+  const champsim::page_number trigger_vpage{trigger_vaddr};
   uint32_t last_sig = 0, curr_sig = 0, depth = 0;
   std::vector<uint32_t> confidence_q(intern_->MSHR_SIZE);
 
@@ -88,25 +85,24 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
   GHR.global_accuracy = GHR.pf_issued ? ((100 * GHR.pf_useful) / GHR.pf_issued) : 0;
 
   if constexpr (SPP_DEBUG_PRINT) {
-    std::cout << std::endl << "[ChampSim] " << __func__ << " addr: " << addr;
-    std::cout << " page: " << page << std::endl;
+    std::cout << std::endl << "[ChampSim] " << __func__ << " trigger_paddr: " << trigger_paddr;
+    std::cout << " trigger_ppage: " << trigger_ppage << std::endl;
   }
 
   // Stage 1: Read and update a sig stored in ST
   // last_sig and delta are used to update (sig, delta) correlation in PT
   // curr_sig is used to read prefetch candidates in PT
-  ST.read_and_update_sig(addr, last_sig, curr_sig, delta);
+  ST.read_and_update_sig(trigger_paddr, last_sig, curr_sig, delta);
 
   // Also check the prefetch filter in parallel to update global accuracy counters
-  FILTER.check(addr, spp_dev_pgc_size_adj::L2C_DEMAND);
+  FILTER.check(trigger_paddr, spp_dev_pgc_size_adj::L2C_DEMAND);
 
   // Stage 2: Update delta patterns stored in PT
   if (last_sig)
     PT.update_pattern(last_sig, delta);
 
   // Stage 3: Start prefetching
-  const auto trigger_ppage = page;
-  auto base_addr = addr;
+  auto base_paddr = trigger_paddr;
   uint32_t lookahead_conf = 100, pf_q_head = 0, pf_q_tail = 0;
   uint8_t do_lookahead = 0;
 
@@ -117,12 +113,12 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
     do_lookahead = 0;
     for (uint32_t i = pf_q_head; i < pf_q_tail; i++) {
       if (confidence_q[i] >= PF_THRESHOLD) {
-        champsim::address pf_addr{champsim::block_number{base_addr} + delta_q[i]};
-        champsim::page_number pf_page{pf_addr};
-        champsim::page_number base_page{base_addr};
+        champsim::address pf_paddr{champsim::block_number{base_paddr} + delta_q[i]};
+        champsim::page_number pf_ppage{pf_paddr};
+        champsim::page_number base_ppage{base_paddr};
         const bool is_prefetch_in_this_level = (confidence_q[i] >= FILL_THRESHOLD);
 
-        if (!is_adjacent_in_virtual(trigger_cpu, v_addr, pf_addr)) {
+        if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
           if (is_prefetch_in_this_level) {
             discarded_pgc_request_count++;
           }
@@ -130,25 +126,25 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
           continue;
         }
 
-        if (FILTER.check(pf_addr, (is_prefetch_in_this_level ? spp_dev_pgc_size_adj::SPP_L2C_PREFETCH : spp_dev_pgc_size_adj::SPP_LLC_PREFETCH))) {
+        if (FILTER.check(pf_paddr, (is_prefetch_in_this_level ? spp_dev_pgc_size_adj::SPP_L2C_PREFETCH : spp_dev_pgc_size_adj::SPP_LLC_PREFETCH))) {
 
-          auto cache_line = champsim::block_number{pf_addr};
+          auto cache_line = champsim::block_number{pf_paddr};
           // ChampSimではハッシュ関数を用いてプリフェッチフィルタのスロット割当を行う。
           // ハッシュ値のうち、下位からREMAINDER_BIT分はタグに、そこから上位のQUOTIENT_BIT分をインデクシングに使用。
           uint64_t hash = get_hash(cache_line.to<uint64_t>());
           uint32_t q = (hash >> REMAINDER_BIT) & ((1 << QUOTIENT_BIT) - 1);
 
-          if (pf_page != page) { // Prefetch request is crossing the physical page boundary
+          if (pf_ppage != trigger_ppage) { // Prefetch request is crossing the physical page boundary
             if (is_prefetch_in_this_level) {
               pgc_count++;
               FILTER.is_pgc[q] = 1;
 
-              if (pf_page != base_page) {
+              if (pf_ppage != base_ppage) {
                 true_pgc_count++;
               }
 
-              auto p0 = page.to<uint64_t>();
-              auto p1 = pf_page.to<uint64_t>();
+              auto p0 = trigger_ppage.to<uint64_t>();
+              auto p1 = pf_ppage.to<uint64_t>();
               int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
               pgc_distance_map[page_distance]++;
             }
@@ -156,7 +152,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
             if constexpr (GHR_ON) {
               // Store this prefetch request in GHR to bootstrap SPP learning when
               // we see a ST miss (i.e., accessing a new page)
-              GHR.update_entry(curr_sig, confidence_q[i], spp_dev_pgc_size_adj::offset_type{pf_addr}, delta_q[i]);
+              GHR.update_entry(curr_sig, confidence_q[i], spp_dev_pgc_size_adj::offset_type{pf_paddr}, delta_q[i]);
             }
           } else {
             if (is_prefetch_in_this_level) {
@@ -164,7 +160,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
             }
           }
 
-          prefetch_line(pf_addr, is_prefetch_in_this_level, 0); // Use addr (not base_addr) to obey the same physical page boundary
+          prefetch_line(pf_paddr, is_prefetch_in_this_level, 0); // Use addr (not base_addr) to obey the same physical page boundary
 
           total_prefetch_count++;
           if (is_prefetch_in_this_level) {
@@ -182,7 +178,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
           }
 
           if constexpr (SPP_DEBUG_PRINT) {
-            std::cout << "[ChampSim] " << __func__ << " base_addr: " << base_addr << " pf_addr: " << pf_addr;
+            std::cout << "[ChampSim] " << __func__ << " base_paddr: " << base_paddr << " pf_paddr: " << pf_paddr;
             std::cout << " prefetch_delta: " << delta_q[i] << " confidence: " << confidence_q[i];
             std::cout << " depth: " << i << std::endl;
           }
@@ -195,7 +191,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
     // Update base_addr and curr_sig
     if (lookahead_way < PT_WAY) {
       uint32_t set = get_hash(curr_sig) % PT_SET;
-      base_addr += (PT.delta[set][lookahead_way] << LOG2_BLOCK_SIZE);
+      base_paddr += (PT.delta[set][lookahead_way] << LOG2_BLOCK_SIZE);
 
       // PT.delta uses a 7-bit sign magnitude representation to generate
       // sig_delta
@@ -207,7 +203,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
     }
 
     if constexpr (SPP_DEBUG_PRINT) {
-      std::cout << "Looping curr_sig: " << std::hex << curr_sig << " base_addr: " << base_addr << std::dec;
+      std::cout << "Looping curr_sig: " << std::hex << curr_sig << " base_paddr: " << base_paddr << std::dec;
       std::cout << " pf_q_head: " << pf_q_head << " pf_q_tail: " << pf_q_tail << " depth: " << depth << std::endl;
     }
   } while (LOOKAHEAD_ON && do_lookahead);
