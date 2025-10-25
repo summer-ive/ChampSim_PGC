@@ -29,28 +29,29 @@ void spp_dev_pgc_size_adj::prefetcher_initialize()
   GHR._parent = this;
 }
 
-bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(champsim::address addr, champsim::address v_addr, champsim::address pf_addr)
+bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::address trigger_vaddr, champsim::address pf_addr)
 {
-  champsim::page_number cur_ppage{addr};
-  champsim::page_number cur_vpage{v_addr};
-  champsim::page_number pf_ppage{pf_addr};
+  const champsim::page_number trigger_vpage{trigger_vaddr};
+  const champsim::page_number trigger_paddr = va_to_pa_ideal(trigger_cpu, trigger_vpage);
+  const champsim::page_number trigger_ppage{trigger_paddr};
+  const champsim::page_number pf_ppage{pf_addr};
 
-  if (pf_ppage == cur_ppage)
+  if (pf_ppage == trigger_ppage)
     return true;
-  const long long step = (pf_ppage > cur_ppage) ? 1 : -1;
+  const long long step = (pf_ppage > trigger_ppage) ? 1 : -1;
   long long delta = 0;
-  while (pf_ppage - delta != cur_ppage) {
+  while (pf_ppage - delta != trigger_ppage) {
     delta += step;
   }
 
-  auto init_ppage = va_to_pa_ideal(intern_->cpu, cur_vpage);
-  assert(init_ppage == cur_ppage);
+  auto cur_vpage = trigger_vpage;
+  auto cur_ppage = trigger_ppage;
 
   while (delta != 0) {
     auto adj_vpage = cur_vpage + step;
-    auto adj_ppage = va_to_pa_ideal(intern_->cpu, adj_vpage);
+    auto adj_ppage = va_to_pa_ideal(trigger_cpu, adj_vpage);
 
-    if (adj_ppage - step != cur_ppage)
+    if (adj_ppage != (cur_ppage + step))
       return false;
 
     cur_vpage = adj_vpage;
@@ -60,16 +61,16 @@ bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(champsim::address addr, champs
 
   if (cur_ppage == pf_ppage) {
     return true;
-  } else {
-    assert("The target physical page address doesn't match the incremented physical page address.");
-    return false;
   }
+
+  std::cout << "The target physical page address doesn't match the incremented physical page address. There may be a bug." << std::endl;
+  return false;
 }
 
 void spp_dev_pgc_size_adj::prefetcher_cycle_operate() {}
 
-uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(champsim::address addr, champsim::address v_addr, champsim::address ip, uint8_t cache_hit,
-                                                        bool useful_prefetch, access_type type, uint32_t metadata_in)
+uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address addr, champsim::address v_addr, champsim::address ip,
+                                                        uint8_t cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
   champsim::page_number page{addr};
   champsim::page_number v_page{v_addr};
@@ -104,6 +105,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(champsim::address addr, 
     PT.update_pattern(last_sig, delta);
 
   // Stage 3: Start prefetching
+  const auto trigger_ppage = page;
   auto base_addr = addr;
   auto base_vaddr = v_addr;
   uint32_t lookahead_conf = 100, pf_q_head = 0, pf_q_tail = 0;
@@ -125,7 +127,8 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(champsim::address addr, 
           champsim::page_number base_page{base_addr};
           if (pf_page != page) { // Prefetch request is crossing the physical page boundary
             if (pf_page != base_page) {
-              if (!is_adjacent_in_virtual(base_addr, base_vaddr, pf_addr)) {
+              true_pgc_request_count++;
+              if (!is_adjacent_in_virtual(trigger_cpu, v_addr, pf_addr)) {
                 discarded_pgc_request_count++;
                 continue;
               }
@@ -185,7 +188,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(champsim::address addr, 
           }
         }
         do_lookahead = 1;
-        pf_q_head++; // これ不要ではないか？forでインクリメントされるはず。
+        pf_q_head++;
       }
     }
 
@@ -233,8 +236,8 @@ void spp_dev_pgc_size_adj::prefetcher_final_stats()
   std::cout << "[SPP] l2c prefetches: " << l2c_prefetch_count << "\n";
   std::cout << "[SPP] llc prefetches: " << llc_prefetch_count << "\n";
   std::cout << "[SPP] page-crossing count: " << pgc_count << "\n";
+  std::cout << "[SPP] true page-crossing request count: " << true_pgc_request_count << "\n";
   std::cout << "[SPP] true page-crossing count: " << true_pgc_count << "\n";
-  std::cout << "[SPP] allowed true page-crossing count: " << (true_pgc_count - discarded_pgc_request_count) << "\n";
   std::cout << "[SPP] discarded page-crossing request count: " << discarded_pgc_request_count << "\n";
   std::cout << "[SPP] page-crossing distances:\n";
   for (auto& [dist, cnt] : pgc_distance_map)
