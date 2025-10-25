@@ -54,7 +54,7 @@ const unsigned LOG2_PAGE_SIZE = champsim::lg2(PAGE_SIZE);
 #ifndef CHAMPSIM_TEST_BUILD
 
 configured_environment gen_environment{};
-champsim::page_number va_to_pa_ideal(uint32_t cpu_num, champsim::page_number vaddr) { return gen_environment.vmem.va_to_pa(cpu_num, vaddr).first; }
+champsim::page_number va_to_pa_ideal(uint32_t cpu_num, champsim::page_number vpage) { return gen_environment.vmem.va_to_pa(cpu_num, vpage).first; }
 
 int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 {
