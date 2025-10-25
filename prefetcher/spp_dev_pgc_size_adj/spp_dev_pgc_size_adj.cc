@@ -183,7 +183,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
         do_lookahead = 1;
       }
     }
-    pf_q_head == pf_q_tail;
+    pf_q_head = pf_q_tail;
 
     // Update base_addr and curr_sig
     if (lookahead_way < PT_WAY) {
