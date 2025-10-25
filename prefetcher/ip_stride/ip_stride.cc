@@ -3,7 +3,7 @@
 #include "cache.h"
 
 uint32_t ip_stride::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,
-                                             uint8_t cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
+                                             bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
   champsim::block_number cl_addr{trigger_paddr};
   champsim::block_number::difference_type stride = 0;

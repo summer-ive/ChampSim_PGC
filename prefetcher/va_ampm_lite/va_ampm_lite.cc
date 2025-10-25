@@ -27,7 +27,7 @@ bool va_ampm_lite::check_cl_prefetch(champsim::block_number v_addr)
 }
 
 uint32_t va_ampm_lite::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,
-                                                uint8_t cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
+                                                bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
   auto [current_vpn, page_offset] = page_and_offset(trigger_paddr);
   champsim::block_number block_addr{trigger_paddr};

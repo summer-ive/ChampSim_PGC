@@ -48,7 +48,7 @@ pref_variant_data = [
             ("uint64_t", "trigger_paddr"),
             ("uint64_t", "trigger_vaddr"),
             ("uint64_t", "ip"),
-            ("uint8_t", "cache_hit"),
+            ("bool", "cache_hit"),
             ("bool", "useful_prefetch"),
             ("uint8_t", "type"),
             ("uint32_t", "metadata_in"),

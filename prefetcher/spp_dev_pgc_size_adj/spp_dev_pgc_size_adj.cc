@@ -67,7 +67,7 @@ bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim
 void spp_dev_pgc_size_adj::prefetcher_cycle_operate() {}
 
 uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr,
-                                                        champsim::address ip, uint8_t cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
+                                                        champsim::address ip, bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
   const champsim::page_number trigger_ppage{trigger_paddr};
   const champsim::page_number trigger_vpage{trigger_vaddr};

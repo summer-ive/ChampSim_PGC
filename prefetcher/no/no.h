@@ -14,7 +14,7 @@ public:
   // void prefetcher_initialize() {}
   // void prefetcher_branch_operate(champsim::address ip, uint8_t branch_type, champsim::address branch_target) {}
   uint32_t prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,
-                                    uint8_t cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in);
+                                    bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in);
   uint32_t prefetcher_cache_fill(champsim::address addr, long set, long way, uint8_t prefetch, champsim::address evicted_addr, uint32_t metadata_in);
   // void prefetcher_cycle_operate() {}
   // void prefetcher_final_stats() {}

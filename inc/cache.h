@@ -370,9 +370,9 @@ uint32_t CACHE::prefetcher_module_model<Ps...>::impl_prefetcher_cache_operate(ui
           p.prefetcher_cache_operate(trigger_cpu, trigger_paddr, trigger_vaddr, ip, cache_hit, useful_prefetch, champsim::to_underlying(type), metadata_in)};
 
     /* Raw integer addresses, no useful_prefetch parameter, raw integer access type */
-    if constexpr (prefetcher::has_cache_operate<decltype(p), uint32_t, uint64_t, uint64_t, uint64_t, bool, std::underlying_type_t<access_type>, uint32_t>)
+    if constexpr (prefetcher::has_cache_operate<decltype(p), uint32_t, uint64_t, uint64_t, uint64_t, bool, bool, std::underlying_type_t<access_type>, uint32_t>)
       return return_type{p.prefetcher_cache_operate(trigger_cpu, trigger_paddr.to<uint64_t>(), trigger_vaddr.to<uint64_t>(), ip.to<uint64_t>(), cache_hit,
-                                                    champsim::to_underlying(type), metadata_in)};
+                                                    useful_prefetch, champsim::to_underlying(type), metadata_in)};
 
     return return_type{};
   };
