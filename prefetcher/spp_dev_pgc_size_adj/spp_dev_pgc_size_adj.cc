@@ -143,9 +143,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
                 true_pgc_count++;
               }
 
-              auto p0 = trigger_ppage.to<uint64_t>();
-              auto p1 = pf_ppage.to<uint64_t>();
-              int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
+              int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
               pgc_distance_map[page_distance]++;
             }
 
@@ -180,13 +178,14 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
           if constexpr (SPP_DEBUG_PRINT) {
             std::cout << "[ChampSim] " << __func__ << " base_paddr: " << base_paddr << " pf_paddr: " << pf_paddr;
             std::cout << " prefetch_delta: " << delta_q[i] << " confidence: " << confidence_q[i];
-            std::cout << " depth: " << i << std::endl;
+            std::cout << " depth: " << depth << std::endl;
           }
         }
         do_lookahead = 1;
         pf_q_head++;
       }
     }
+    assert(pf_q_head == pf_q_tail);
 
     // Update base_addr and curr_sig
     if (lookahead_way < PT_WAY) {
@@ -477,7 +476,6 @@ void spp_dev_pgc_size_adj::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::v
         }
       }
     }
-    pf_q_tail++;
 
     lookahead_conf = max_conf;
     if (lookahead_conf >= PF_THRESHOLD)
