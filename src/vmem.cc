@@ -45,7 +45,7 @@ VirtualMemory::VirtualMemory(champsim::data::bytes page_table_page_size, std::si
     fmt::print("[VMEM] WARNING: physical memory size is smaller than virtual memory size.\n"); // LCOV_EXCL_LINE
   }
   populate_pages();
-  shuffle_pages();
+  // shuffle_pages();
 }
 
 VirtualMemory::VirtualMemory(champsim::data::bytes page_table_page_size, std::size_t page_table_levels, champsim::chrono::clock::duration minor_penalty,
