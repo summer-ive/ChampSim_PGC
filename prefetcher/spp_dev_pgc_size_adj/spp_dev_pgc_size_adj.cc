@@ -130,6 +130,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
               true_pgc_request_count++;
               if (!is_adjacent_in_virtual(trigger_cpu, v_addr, pf_addr)) {
                 discarded_pgc_request_count++;
+                pf_q_head++;
                 continue;
               }
               true_pgc_count++;
