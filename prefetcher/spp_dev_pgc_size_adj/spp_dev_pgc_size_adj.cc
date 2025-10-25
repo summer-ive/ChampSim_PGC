@@ -29,11 +29,11 @@ void spp_dev_pgc_size_adj::prefetcher_initialize()
   GHR._parent = this;
 }
 
-bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::address trigger_vaddr, champsim::address pf_addr)
+bool spp_dev_pgc_size_adj::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::address trigger_vaddr,
+                                                  champsim::address pf_addr) // TODO: Change argument type from champsim::address to champsim::page_number
 {
   const champsim::page_number trigger_vpage{trigger_vaddr};
-  const champsim::page_number trigger_paddr = va_to_pa_ideal(trigger_cpu, trigger_vpage);
-  const champsim::page_number trigger_ppage{trigger_paddr};
+  const champsim::page_number trigger_ppage{va_to_pa_ideal(trigger_cpu, trigger_vpage)};
   const champsim::page_number pf_ppage{pf_addr};
 
   if (pf_ppage == trigger_ppage)
@@ -107,7 +107,6 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
   // Stage 3: Start prefetching
   const auto trigger_ppage = page;
   auto base_addr = addr;
-  auto base_vaddr = v_addr;
   uint32_t lookahead_conf = 100, pf_q_head = 0, pf_q_tail = 0;
   uint8_t do_lookahead = 0;
 
@@ -119,59 +118,57 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
     for (uint32_t i = pf_q_head; i < pf_q_tail; i++) {
       if (confidence_q[i] >= PF_THRESHOLD) {
         champsim::address pf_addr{champsim::block_number{base_addr} + delta_q[i]};
-        champsim::address pf_vaddr{champsim::block_number{base_vaddr} + delta_q[i]};
+        champsim::page_number pf_page{pf_addr};
+        champsim::page_number base_page{base_addr};
+        const bool is_prefetch_in_this_level = (confidence_q[i] >= FILL_THRESHOLD);
 
-        if (FILTER.check(pf_addr, ((confidence_q[i] >= FILL_THRESHOLD) ? spp_dev_pgc_size_adj::SPP_L2C_PREFETCH : spp_dev_pgc_size_adj::SPP_LLC_PREFETCH))) {
+        if (!is_adjacent_in_virtual(trigger_cpu, v_addr, pf_addr)) {
+          if (is_prefetch_in_this_level) {
+            discarded_pgc_request_count++;
+          }
+          pf_q_head++;
+          continue;
+        }
 
-          champsim::page_number pf_page{pf_addr};
-          champsim::page_number base_page{base_addr};
+        if (FILTER.check(pf_addr, (is_prefetch_in_this_level ? spp_dev_pgc_size_adj::SPP_L2C_PREFETCH : spp_dev_pgc_size_adj::SPP_LLC_PREFETCH))) {
+
+          auto cache_line = champsim::block_number{pf_addr};
+          // ChampSimではハッシュ関数を用いてプリフェッチフィルタのスロット割当を行う。
+          // ハッシュ値のうち、下位からREMAINDER_BIT分はタグに、そこから上位のQUOTIENT_BIT分をインデクシングに使用。
+          uint64_t hash = get_hash(cache_line.to<uint64_t>());
+          uint32_t q = (hash >> REMAINDER_BIT) & ((1 << QUOTIENT_BIT) - 1);
+
           if (pf_page != page) { // Prefetch request is crossing the physical page boundary
-            if (pf_page != base_page) {
-              true_pgc_request_count++;
-              if (!is_adjacent_in_virtual(trigger_cpu, v_addr, pf_addr)) {
-                discarded_pgc_request_count++;
-                pf_q_head++;
-                continue;
+            if (is_prefetch_in_this_level) {
+              pgc_count++;
+              FILTER.is_pgc[q] = 1;
+
+              if (pf_page != base_page) {
+                true_pgc_count++;
               }
-              true_pgc_count++;
+
+              auto p0 = page.to<uint64_t>();
+              auto p1 = pf_page.to<uint64_t>();
+              int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
+              pgc_distance_map[page_distance]++;
             }
-            pgc_count++;
-
-            // 現在のルックアヘッド起点のvaを保持・更新しておく。
-            // 上のpage_distanceはトリガーとなったページアドレス(page)からの距離なので、その点に注意。
-            // ルックアヘッドの起点ページからいくつ離れたページが対象かを算出し、1ずつvaをずらしながらpaの連続性を確認していく。
-            // va->paにはva_to_pa的な関数があるはず。
-            // 途中で途切れていることがわかったらその時点でpgcをキャンセルし、統計のカウントを加算しておく。
-
-            auto cache_line = champsim::block_number{pf_addr};
-            // ChampSimではハッシュ関数を用いてプリフェッチフィルタのスロット割当を行う。
-            // ハッシュ値のうち、下位からREMAINDER_BIT分はタグに、そこから上位のQUOTIENT_BIT分をインデクシングに使用。
-            uint64_t hash = get_hash(cache_line.to<uint64_t>());
-            uint32_t q = (hash >> REMAINDER_BIT) & ((1 << QUOTIENT_BIT) - 1);
-            pgc_entry[q] = true;
-
-            auto p0 = page.to<uint64_t>();
-            auto p1 = pf_page.to<uint64_t>();
-            int page_distance = static_cast<int>(p1) - static_cast<int>(p0);
-            pgc_distance_map[page_distance]++;
 
             if constexpr (GHR_ON) {
               // Store this prefetch request in GHR to bootstrap SPP learning when
               // we see a ST miss (i.e., accessing a new page)
               GHR.update_entry(curr_sig, confidence_q[i], spp_dev_pgc_size_adj::offset_type{pf_addr}, delta_q[i]);
             }
+          } else {
+            if (is_prefetch_in_this_level) {
+              FILTER.is_pgc[q] = 0;
+            }
           }
+
+          prefetch_line(pf_addr, is_prefetch_in_this_level, 0); // Use addr (not base_addr) to obey the same physical page boundary
 
           total_prefetch_count++;
-          if (confidence_q[i] >= FILL_THRESHOLD) {
+          if (is_prefetch_in_this_level) {
             l2c_prefetch_count++;
-          } else {
-            llc_prefetch_count++;
-          }
-
-          prefetch_line(pf_addr, (confidence_q[i] >= FILL_THRESHOLD), 0); // Use addr (not base_addr) to obey the same physical page boundary
-
-          if (confidence_q[i] >= FILL_THRESHOLD) {
             GHR.pf_issued++;
             if (GHR.pf_issued > GLOBAL_COUNTER_MAX) {
               GHR.pf_issued >>= 1;
@@ -180,6 +177,8 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
             if constexpr (SPP_DEBUG_PRINT) {
               std::cout << "[ChampSim] SPP L2 prefetch issued GHR.pf_issued: " << GHR.pf_issued << " GHR.pf_useful: " << GHR.pf_useful << std::endl;
             }
+          } else {
+            llc_prefetch_count++;
           }
 
           if constexpr (SPP_DEBUG_PRINT) {
@@ -197,7 +196,6 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
     if (lookahead_way < PT_WAY) {
       uint32_t set = get_hash(curr_sig) % PT_SET;
       base_addr += (PT.delta[set][lookahead_way] << LOG2_BLOCK_SIZE);
-      base_vaddr += (PT.delta[set][lookahead_way] << LOG2_BLOCK_SIZE);
 
       // PT.delta uses a 7-bit sign magnitude representation to generate
       // sig_delta
@@ -237,7 +235,7 @@ void spp_dev_pgc_size_adj::prefetcher_final_stats()
   std::cout << "[SPP] l2c prefetches: " << l2c_prefetch_count << "\n";
   std::cout << "[SPP] llc prefetches: " << llc_prefetch_count << "\n";
   std::cout << "[SPP] page-crossing count: " << pgc_count << "\n";
-  std::cout << "[SPP] true page-crossing request count: " << true_pgc_request_count << "\n";
+  std::cout << "[SPP] true page-crossing request count: " << true_pgc_count + discarded_pgc_request_count << "\n";
   std::cout << "[SPP] true page-crossing count: " << true_pgc_count << "\n";
   std::cout << "[SPP] discarded page-crossing request count: " << discarded_pgc_request_count << "\n";
   std::cout << "[SPP] page-crossing distances:\n";
@@ -562,9 +560,8 @@ bool spp_dev_pgc_size_adj::PREFETCH_FILTER::check(champsim::address check_addr, 
         _parent->GHR.pf_useful++; // This cache line was prefetched by SPP and actually used in the program
 
         // If this slot is derived from PGC, then count up PGC-useful.
-        if (_parent->pgc_entry[quotient]) {
+        if (is_pgc[quotient]) {
           _parent->pgc_useful_count++;
-          _parent->pgc_entry[quotient] = false; // Forbid double count of PGC-useful.
         }
       }
 
@@ -585,6 +582,7 @@ bool spp_dev_pgc_size_adj::PREFETCH_FILTER::check(champsim::address check_addr, 
     valid[quotient] = 0;
     useful[quotient] = 0;
     remainder_tag[quotient] = 0;
+    is_pgc[quotient] = 0;
     break;
 
   default:

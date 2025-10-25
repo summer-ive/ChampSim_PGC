@@ -61,7 +61,6 @@ struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
   uint64_t discarded_pgc_request_count = 0; // discarded pgc request due to discontinuity on the virtual memory address
   uint64_t pgc_useful_count = 0;
   std::unordered_map<int, uint64_t> pgc_distance_map;
-  bool pgc_entry[FILTER_SET] = {false};
   bool is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::address trigger_vaddr, champsim::address pf_addr);
 
   using prefetcher::prefetcher;
@@ -140,7 +139,8 @@ struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
     spp_dev_pgc_size_adj* _parent;
     uint64_t remainder_tag[FILTER_SET];
     bool valid[FILTER_SET], // Consider this as "prefetched"
-        useful[FILTER_SET]; // Consider this as "used"
+        useful[FILTER_SET], // Consider this as "used"
+        is_pgc[FILTER_SET]; // Consider this as "page-crossing prefetched"
 
     PREFETCH_FILTER()
     {
@@ -148,6 +148,7 @@ struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
         remainder_tag[set] = 0;
         valid[set] = 0;
         useful[set] = 0;
+        is_pgc[set] = 0;
       }
     }
 
