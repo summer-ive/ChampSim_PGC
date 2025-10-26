@@ -56,7 +56,6 @@ struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
   uint64_t l2c_prefetch_count = 0;          // total count of l2c prefetch
   uint64_t llc_prefetch_count = 0;          // total count of llc prefetch
   uint64_t pgc_count = 0;                   // pgc among all prefetch
-  uint64_t true_pgc_request_count = 0;      // count of narrowly defined pgc request
   uint64_t true_pgc_count = 0;              // count of narrowly defined pgc including discarded ones
   uint64_t discarded_pgc_request_count = 0; // discarded pgc request due to discontinuity on the virtual memory address
   uint64_t pgc_useful_count = 0;
