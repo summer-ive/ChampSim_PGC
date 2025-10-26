@@ -120,7 +120,7 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
 
         if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
           if (is_prefetch_in_this_level) {
-            discarded_pgc_request_count++;
+            l2c_discarded_pgc_request_count++;
           }
           continue;
         }
@@ -135,15 +135,15 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
 
           if (pf_ppage != trigger_ppage) { // Prefetch request is crossing the physical page boundary
             if (is_prefetch_in_this_level) {
-              pgc_count++;
+              l2c_pgc_count++;
               FILTER.is_pgc[q] = 1;
 
               if (pf_ppage != base_ppage) {
-                true_pgc_count++;
+                l2c_true_pgc_count++;
               }
 
               int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
-              pgc_distance_map[page_distance]++;
+              l2c_pgc_distance_map[page_distance]++;
             }
 
             if constexpr (GHR_ON) {
@@ -227,14 +227,14 @@ void spp_dev_pgc_size_adj::prefetcher_final_stats()
   std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n";
   std::cout << "[SPP] l2c prefetches: " << l2c_prefetch_count << "\n";
   std::cout << "[SPP] llc prefetches: " << llc_prefetch_count << "\n";
-  std::cout << "[SPP] page-crossing count: " << pgc_count << "\n";
-  std::cout << "[SPP] true page-crossing request count: " << true_pgc_count + discarded_pgc_request_count << "\n";
-  std::cout << "[SPP] true page-crossing count: " << true_pgc_count << "\n";
-  std::cout << "[SPP] discarded page-crossing request count: " << discarded_pgc_request_count << "\n";
-  std::cout << "[SPP] page-crossing distances:\n";
-  for (auto& [dist, cnt] : pgc_distance_map)
+  std::cout << "[SPP] l2c page-crossing prefetch count: " << l2c_pgc_count << "\n";
+  std::cout << "[SPP] l2c true page-crossing request count: " << l2c_true_pgc_count + l2c_discarded_pgc_request_count << "\n";
+  std::cout << "[SPP] l2c true page-crossing count: " << l2c_true_pgc_count << "\n";
+  std::cout << "[SPP] l2c discarded page-crossing request count: " << l2c_discarded_pgc_request_count << "\n";
+  std::cout << "[SPP] l2c page-crossing distances:\n";
+  for (auto& [dist, cnt] : l2c_pgc_distance_map)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
-  std::cout << "[SPP] useful pgc count: " << pgc_useful_count << "\n";
+  std::cout << "[SPP] l2c useful pgc count: " << l2c_pgc_useful_count << "\n";
 }
 
 // TODO: Find a good 64-bit hash function
@@ -553,7 +553,7 @@ bool spp_dev_pgc_size_adj::PREFETCH_FILTER::check(champsim::address check_addr, 
 
         // If this slot is derived from PGC, then count up PGC-useful.
         if (is_pgc[quotient]) {
-          _parent->pgc_useful_count++;
+          _parent->l2c_pgc_useful_count++;
         }
       }
 

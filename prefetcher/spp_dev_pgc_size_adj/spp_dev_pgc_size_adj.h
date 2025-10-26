@@ -52,14 +52,18 @@ struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
   // Statistics variants for PGC simulation
-  uint64_t total_prefetch_count = 0;        // total count of prefetch
-  uint64_t l2c_prefetch_count = 0;          // total count of l2c prefetch
-  uint64_t llc_prefetch_count = 0;          // total count of llc prefetch
-  uint64_t pgc_count = 0;                   // pgc among all prefetch
-  uint64_t true_pgc_count = 0;              // count of narrowly defined pgc including discarded ones
-  uint64_t discarded_pgc_request_count = 0; // discarded pgc request due to discontinuity on the virtual memory address
-  uint64_t pgc_useful_count = 0;
-  std::unordered_map<int, uint64_t> pgc_distance_map;
+  uint64_t total_prefetch_count = 0;            // total count of prefetch
+  uint64_t l2c_prefetch_count = 0;              // total count of l2c prefetch
+  uint64_t llc_prefetch_count = 0;              // total count of llc prefetch
+  uint64_t l2c_pgc_count = 0;                   // pgc among all l2c prefetches
+  uint64_t llc_pgc_count = 0;                   // pgc among all llc prefetches
+  uint64_t l2c_true_pgc_count = 0;              // count of narrowly defined l2c pgc including discarded ones
+  uint64_t llc_true_pgc_count = 0;              // count of narrowly defined llc pgc including discarded ones
+  uint64_t l2c_discarded_pgc_request_count = 0; // discarded l2c pgc request due to discontinuity on the virtual memory address
+  uint64_t llc_discarded_pgc_request_count = 0; // discarded llc pgc request due to discontinuity on the virtual memory address
+  uint64_t l2c_pgc_useful_count = 0;
+  std::unordered_map<int, uint64_t> l2c_pgc_distance_map;
+  std::unordered_map<int, uint64_t> llc_pgc_distance_map;
   bool is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage);
 
   using prefetcher::prefetcher;
