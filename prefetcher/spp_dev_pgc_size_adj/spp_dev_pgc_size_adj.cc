@@ -121,6 +121,8 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
         if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
           if (is_prefetch_in_this_level) {
             l2c_discarded_pgc_request_count++;
+          } else {
+            llc_discarded_pgc_request_count++;
           }
           continue;
         }
@@ -144,6 +146,15 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
 
               int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
               l2c_pgc_distance_map[page_distance]++;
+            } else {
+              llc_pgc_count++;
+
+              if (pf_ppage != base_ppage) {
+                llc_true_pgc_count++;
+              }
+
+              int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
+              llc_pgc_distance_map[page_distance]++;
             }
 
             if constexpr (GHR_ON) {
@@ -224,16 +235,44 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_fill(champsim::address addr, lon
 void spp_dev_pgc_size_adj::prefetcher_final_stats()
 {
   std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
+
   std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n";
   std::cout << "[SPP] l2c prefetches: " << l2c_prefetch_count << "\n";
   std::cout << "[SPP] llc prefetches: " << llc_prefetch_count << "\n";
+
+  std::cout << "[SPP] total page-crossing prefetch count: " << l2c_pgc_count + llc_pgc_count << "\n";
   std::cout << "[SPP] l2c page-crossing prefetch count: " << l2c_pgc_count << "\n";
+  std::cout << "[SPP] llc page-crossing prefetch count: " << llc_pgc_count << "\n";
+
+  std::cout << "[SPP] total true page-crossing request count: "
+            << l2c_true_pgc_count + llc_true_pgc_count + l2c_discarded_pgc_request_count + llc_discarded_pgc_request_count << "\n";
   std::cout << "[SPP] l2c true page-crossing request count: " << l2c_true_pgc_count + l2c_discarded_pgc_request_count << "\n";
-  std::cout << "[SPP] l2c true page-crossing count: " << l2c_true_pgc_count << "\n";
+  std::cout << "[SPP] llc true page-crossing request count: " << llc_true_pgc_count + llc_discarded_pgc_request_count << "\n";
+
+  std::cout << "[SPP] total true page-crossing prefetch count: " << l2c_true_pgc_count + llc_true_pgc_count << "\n";
+  std::cout << "[SPP] l2c true page-crossing prefetch count: " << l2c_true_pgc_count << "\n";
+  std::cout << "[SPP] llc true page-crossing prefetch count: " << llc_true_pgc_count << "\n";
+
+  std::cout << "[SPP] total discarded page-crossing request count: " << l2c_discarded_pgc_request_count + llc_discarded_pgc_request_count << "\n";
   std::cout << "[SPP] l2c discarded page-crossing request count: " << l2c_discarded_pgc_request_count << "\n";
+  std::cout << "[SPP] llc discarded page-crossing request count: " << llc_discarded_pgc_request_count << "\n";
+
+  std::cout << "[SPP] total page-crossing distances:\n";
+  std::unordered_map<int, uint64_t> total_pgc_distance_map;
+  for (auto& [dist, cnt] : l2c_pgc_distance_map)
+    total_pgc_distance_map[dist] += cnt;
+  for (auto& [dist, cnt] : llc_pgc_distance_map)
+    total_pgc_distance_map[dist] += cnt;
+  for (auto& [dist, cnt] : total_pgc_distance_map)
+    std::cout << "  distance " << dist << ": " << cnt << "\n";
+
   std::cout << "[SPP] l2c page-crossing distances:\n";
   for (auto& [dist, cnt] : l2c_pgc_distance_map)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
+  std::cout << "[SPP] llc page-crossing distances:\n";
+  for (auto& [dist, cnt] : llc_pgc_distance_map)
+    std::cout << "  distance " << dist << ": " << cnt << "\n";
+
   std::cout << "[SPP] l2c useful pgc count: " << l2c_pgc_useful_count << "\n";
 }
 
