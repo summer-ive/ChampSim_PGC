@@ -263,20 +263,27 @@ void spp_dev_pgc_ideal::prefetcher_final_stats()
   std::cout << "[SPP] l2c discarded page-crossing request count: " << l2c_discarded_pgc_request_count << "\n";
   std::cout << "[SPP] llc discarded page-crossing request count: " << llc_discarded_pgc_request_count << "\n";
 
-  std::cout << "[SPP] total page-crossing distances:\n";
   std::unordered_map<int, uint64_t> total_pgc_distance_map;
   for (auto& [dist, cnt] : l2c_pgc_distance_map)
     total_pgc_distance_map[dist] += cnt;
   for (auto& [dist, cnt] : llc_pgc_distance_map)
     total_pgc_distance_map[dist] += cnt;
-  for (auto& [dist, cnt] : total_pgc_distance_map)
-    std::cout << "  distance " << dist << ": " << cnt << "\n";
 
+  std::vector<std::pair<int, uint64_t>> total_pgc_distance_vector(total_pgc_distance_map.begin(), total_pgc_distance_map.end());
+  std::vector<std::pair<int, uint64_t>> l2c_pgc_distance_vector(l2c_pgc_distance_map.begin(), l2c_pgc_distance_map.end());
+  std::vector<std::pair<int, uint64_t>> llc_pgc_distance_vector(llc_pgc_distance_map.begin(), llc_pgc_distance_map.end());
+
+  std::sort(total_pgc_distance_vector.begin(), total_pgc_distance_vector.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::sort(l2c_pgc_distance_vector.begin(), l2c_pgc_distance_vector.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::sort(llc_pgc_distance_vector.begin(), llc_pgc_distance_vector.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::cout << "[SPP] total page-crossing distances:\n";
+  for (const auto& [dist, cnt] : total_pgc_distance_vector)
+    std::cout << "  distance " << dist << ": " << cnt << "\n";
   std::cout << "[SPP] l2c page-crossing distances:\n";
-  for (auto& [dist, cnt] : l2c_pgc_distance_map)
+  for (const auto& [dist, cnt] : l2c_pgc_distance_vector)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
   std::cout << "[SPP] llc page-crossing distances:\n";
-  for (auto& [dist, cnt] : llc_pgc_distance_map)
+  for (const auto& [dist, cnt] : llc_pgc_distance_vector)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
 
   std::cout << "[SPP] l2c useful pgc count: " << l2c_pgc_useful_count << "\n";
