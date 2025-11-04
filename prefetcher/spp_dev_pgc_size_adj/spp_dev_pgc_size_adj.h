@@ -62,6 +62,7 @@ struct spp_dev_pgc_size_adj : public champsim::modules::prefetcher {
   uint64_t l2c_discarded_pgc_request_count = 0; // discarded l2c pgc request due to discontinuity on the virtual memory address
   uint64_t llc_discarded_pgc_request_count = 0; // discarded llc pgc request due to discontinuity on the virtual memory address
   uint64_t l2c_pgc_useful_count = 0;
+  uint64_t below_fill_threshold_pgc_request_count = 0;
   std::unordered_map<int, uint64_t> l2c_pgc_distance_map;
   std::unordered_map<int, uint64_t> llc_pgc_distance_map;
   bool is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage);

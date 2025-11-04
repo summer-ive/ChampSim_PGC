@@ -112,10 +112,10 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
 
     do_lookahead = 0;
     for (uint32_t i = pf_q_head; i < pf_q_tail; i++) {
+      champsim::address pf_paddr{champsim::block_number{base_paddr} + delta_q[i]};
+      champsim::page_number pf_ppage{pf_paddr};
+      champsim::page_number base_ppage{base_paddr};
       if (confidence_q[i] >= PF_THRESHOLD) {
-        champsim::address pf_paddr{champsim::block_number{base_paddr} + delta_q[i]};
-        champsim::page_number pf_ppage{pf_paddr};
-        champsim::page_number base_ppage{base_paddr};
         const bool is_prefetch_in_this_level = (confidence_q[i] >= FILL_THRESHOLD);
 
         if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
@@ -192,6 +192,10 @@ uint32_t spp_dev_pgc_size_adj::prefetcher_cache_operate(uint32_t trigger_cpu, ch
           }
         }
         do_lookahead = 1;
+      } else {
+        if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage) && (pf_ppage != trigger_ppage)) {
+          below_fill_threshold_pgc_request_count++;
+        }
       }
     }
     pf_q_head = pf_q_tail;
@@ -252,6 +256,8 @@ void spp_dev_pgc_size_adj::prefetcher_final_stats()
   std::cout << "[SPP] total true page-crossing prefetch count: " << l2c_true_pgc_count + llc_true_pgc_count << "\n";
   std::cout << "[SPP] l2c true page-crossing prefetch count: " << l2c_true_pgc_count << "\n";
   std::cout << "[SPP] llc true page-crossing prefetch count: " << llc_true_pgc_count << "\n";
+
+  std::cout << "[SPP] below fill-threshold discarded page-crossing request count: " << below_fill_threshold_pgc_request_count << "\n";
 
   std::cout << "[SPP] total discarded page-crossing request count: " << l2c_discarded_pgc_request_count + llc_discarded_pgc_request_count << "\n";
   std::cout << "[SPP] l2c discarded page-crossing request count: " << l2c_discarded_pgc_request_count << "\n";
