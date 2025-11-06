@@ -39,6 +39,12 @@ def pickup(data):
                     st_unit_size: float | None = None
                     prefetch_count: int | None = None
                     page_cross_count: int | None = None
+                    true_pgc_count: int | None = None
+                    true_pgc_allowed_count: int | None = None
+                    discarded_pgc_count: int | None = None
+                    l2c_prefetch_count: int | None = None
+                    llc_prefetch_count: int | None = None
+                    useful_pgc_count: int | None = None
 
                     for line in log_data:
                         match = re.search(r"CPU 0 cumulative IPC:\s*([\d.]+)\s+instructions:\s*(\d+)", line)
@@ -67,6 +73,30 @@ def pickup(data):
                         if match is not None:
                             page_cross_count = int(match.group(1))
 
+                        match = re.search(r"\[SPP\] true page-crossing count: (\d+)", line)
+                        if match is not None:
+                            true_pgc_count = int(match.group(1))
+
+                        match = re.search(r"\[SPP\] allowed true page-crossing count: (\d+)", line)
+                        if match is not None:
+                            true_pgc_allowed_count = int(match.group(1))
+
+                        match = re.search(r"\[SPP\] discarded page-crossing count: (\d+)", line)
+                        if match is not None:
+                            discarded_pgc_count = int(match.group(1))
+
+                        match = re.search(r"\[SPP\] l2c prefetches: (\d+)", line)
+                        if match is not None:
+                            l2c_prefetch_count = int(match.group(1))
+
+                        match = re.search(r"\[SPP\] llc prefetches: (\d+)", line)
+                        if match is not None:
+                            llc_prefetch_count = int(match.group(1))
+
+                        match = re.search(r"\[SPP\] useful pgc count: (\d+)", line)
+                        if match is not None:
+                            useful_pgc_count = int(match.group(1))
+
                     result: dict[str, str | int | float | None] = {
                         "trace": trace,
                         "ipc": ipc,
@@ -79,6 +109,18 @@ def pickup(data):
                         result["prefetch_count"] = prefetch_count
                     if page_cross_count is not None:
                         result["page_cross_count"] = page_cross_count
+                    if true_pgc_count is not None:
+                        result["true_pgc_count"] = true_pgc_count
+                    if true_pgc_allowed_count is not None:
+                        result["true_pgc_allowed_count"] = true_pgc_allowed_count
+                    if discarded_pgc_count is not None:
+                        result["discarded_pgc_count"] = discarded_pgc_count
+                    if l2c_prefetch_count is not None:
+                        result["l2c_prefetch_count"] = l2c_prefetch_count
+                    if llc_prefetch_count is not None:
+                        result["llc_prefetch_count"] = llc_prefetch_count
+                    if useful_pgc_count is not None:
+                        result["useful_pgc_count"] = useful_pgc_count
 
                     data[prefetcher_name][version].append(result)
 
