@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 from datetime import datetime
 from collections import deque
 import argparse
@@ -67,20 +68,45 @@ def main():
         if trace_file.stem in trace_filter and trace_file.stem in TEST_TRACES:
             filtered_traces.append(trace_file)
 
+    jobs = []
+
     for version in VERSIONS:
         # 出力ディレクトリ作成
         log_dir = LOG_BASE_DIR / str(args.prefetcher_name) / version
         log_dir.mkdir(parents=True, exist_ok=True)
 
-        # 並列実行
-        with ThreadPoolExecutor(max_workers=NJOBS) as executor:
-            executor.map(
-                run_trace_batch,
-                filtered_traces,
-                [log_dir] * len(filtered_traces),
-                [version] * len(filtered_traces),
-                [str(args.prefetcher_name)] * len(filtered_traces),
+        # 一括実行ジョブ作成
+        for trace_file in trace_files:
+            jobs.append((version, trace_file, log_dir))
+
+    jobs_count = len(jobs)
+    workers_count = max(1, min(NJOBS, os.cpu_count() or 1, jobs_count))
+    print(f"{datetime.now():%H:%M:%S} Launching {jobs_count} jobs with {workers_count} workers")
+
+    # 並列実行
+    with ThreadPoolExecutor(max_workers=workers_count) as executor:
+        futures = []
+        for version, trace_file, log_dir in jobs:
+            futures.append(
+                executor.submit(
+                    run_trace_batch,
+                    trace_path=trace_file,
+                    log_dir=log_dir,
+                    version=version,
+                    prefetcher_name=str(args.prefetcher_name),
+                )
             )
+
+        done = 0
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"[{datetime.now():%H:%M:%S}] [ERR] {type(e).__name__}: {e}")
+            finally:
+                done += 1
+                if done % 10 == 0 or done == jobs_count:
+                    print(f"{datetime.now():%H:%M:%S} Progress: {done}/{jobs_count} finished")
 
 
 if __name__ == "__main__":
