@@ -51,6 +51,9 @@ struct spp_dev_pgc_ideal : public champsim::modules::prefetcher {
   constexpr static uint32_t GLOBAL_COUNTER_MAX = ((1 << GLOBAL_COUNTER_BIT) - 1);
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
+  // PGC enabling flag
+  bool is_pgc_enabled = true;
+
   // Statistics variants for PGC simulation
   uint64_t total_prefetch_count = 0;            // total count of prefetch
   uint64_t l2c_prefetch_count = 0;              // total count of l2c prefetch
