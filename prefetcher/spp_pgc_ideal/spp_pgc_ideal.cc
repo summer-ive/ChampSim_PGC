@@ -1,13 +1,14 @@
-#include "spp_dev_pgc_ideal.h"
+#include "spp_pgc_ideal.h"
 
 #include <cassert>
 #include <iostream>
 
 #include "prefetcher_helper.h"
 
-void spp_dev_pgc_ideal::prefetcher_initialize()
+void spp_pgc_ideal::prefetcher_initialize()
 {
-  std::cout << "Prefetcher: spp_dev_pgc_ideal" << std::endl;
+  std::cout << "Prefetcher: spp_pgc_ideal" << std::endl;
+  std::cout << "PGC enabled: " << (is_pgc_enabled ? "true" : "false") << std::endl;
   std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
   std::cout << "Initialize SIGNATURE TABLE" << std::endl;
   std::cout << "ST_SET: " << ST_SET << std::endl;
@@ -31,7 +32,7 @@ void spp_dev_pgc_ideal::prefetcher_initialize()
   GHR._parent = this;
 }
 
-bool spp_dev_pgc_ideal::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
+bool spp_pgc_ideal::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
 {
   const champsim::page_number trigger_ppage{va_to_pa_ideal(trigger_cpu, trigger_vpage)};
 
@@ -66,18 +67,18 @@ bool spp_dev_pgc_ideal::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::p
   return false;
 }
 
-void spp_dev_pgc_ideal::prefetcher_cycle_operate() {}
+void spp_pgc_ideal::prefetcher_cycle_operate() {}
 
-uint32_t spp_dev_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr,
-                                                     champsim::address ip, bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
+uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,
+                                                 bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
   const champsim::page_number trigger_ppage{trigger_paddr};
   const champsim::page_number trigger_vpage{trigger_vaddr};
   uint32_t last_sig = 0, curr_sig = 0, depth = 0;
   std::vector<uint32_t> confidence_q(intern_->MSHR_SIZE);
 
-  typename spp_dev_pgc_ideal::offset_type::difference_type delta = 0;
-  std::vector<typename spp_dev_pgc_ideal::offset_type::difference_type> delta_q(intern_->MSHR_SIZE);
+  typename spp_pgc_ideal::offset_type::difference_type delta = 0;
+  std::vector<typename spp_pgc_ideal::offset_type::difference_type> delta_q(intern_->MSHR_SIZE);
 
   for (uint32_t i = 0; i < intern_->MSHR_SIZE; i++) {
     confidence_q[i] = 0;
@@ -97,7 +98,7 @@ uint32_t spp_dev_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champ
   ST.read_and_update_sig(trigger_paddr, last_sig, curr_sig, delta);
 
   // Also check the prefetch filter in parallel to update global accuracy counters
-  FILTER.check(trigger_paddr, spp_dev_pgc_ideal::L2C_DEMAND);
+  FILTER.check(trigger_paddr, spp_pgc_ideal::L2C_DEMAND);
 
   // Stage 2: Update delta patterns stored in PT
   if (last_sig)
@@ -117,8 +118,18 @@ uint32_t spp_dev_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champ
       champsim::address pf_paddr{champsim::block_number{base_paddr} + delta_q[i]};
       champsim::page_number pf_ppage{pf_paddr};
       champsim::page_number base_ppage{base_paddr};
+
       if (confidence_q[i] >= PF_THRESHOLD) {
         const bool is_prefetch_in_this_level = (confidence_q[i] >= FILL_THRESHOLD);
+
+        if (!is_pgc_enabled && (pf_ppage != trigger_ppage)) { // Case when PGC is disabled
+          if constexpr (GHR_ON) {
+            // Store this prefetch request in GHR to bootstrap SPP learning when
+            // we see a ST miss (i.e., accessing a new page)
+            GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
+          }
+          continue;
+        }
 
         if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
           if (is_prefetch_in_this_level) {
@@ -129,7 +140,7 @@ uint32_t spp_dev_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champ
           continue;
         }
 
-        if (FILTER.check(pf_paddr, (is_prefetch_in_this_level ? spp_dev_pgc_ideal::SPP_L2C_PREFETCH : spp_dev_pgc_ideal::SPP_LLC_PREFETCH))) {
+        if (FILTER.check(pf_paddr, (is_prefetch_in_this_level ? spp_pgc_ideal::SPP_L2C_PREFETCH : spp_pgc_ideal::SPP_LLC_PREFETCH))) {
 
           auto cache_line = champsim::block_number{pf_paddr};
           // ChampSimではハッシュ関数を用いてプリフェッチフィルタのスロット割当を行う。
@@ -138,31 +149,33 @@ uint32_t spp_dev_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champ
           uint32_t q = (hash >> REMAINDER_BIT) & ((1 << QUOTIENT_BIT) - 1);
 
           if (pf_ppage != trigger_ppage) { // Prefetch request is crossing the physical page boundary
-            if (is_prefetch_in_this_level) {
-              l2c_pgc_count++;
-              FILTER.is_pgc[q] = 1;
+            if (is_pgc_enabled) {
+              if (is_prefetch_in_this_level) {
+                l2c_pgc_count++;
+                FILTER.is_pgc[q] = 1;
 
-              if (pf_ppage != base_ppage) {
-                l2c_true_pgc_count++;
+                if (pf_ppage != base_ppage) {
+                  l2c_true_pgc_count++;
+                }
+
+                int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
+                l2c_pgc_distance_map[page_distance]++;
+              } else {
+                llc_pgc_count++;
+
+                if (pf_ppage != base_ppage) {
+                  llc_true_pgc_count++;
+                }
+
+                int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
+                llc_pgc_distance_map[page_distance]++;
               }
-
-              int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
-              l2c_pgc_distance_map[page_distance]++;
-            } else {
-              llc_pgc_count++;
-
-              if (pf_ppage != base_ppage) {
-                llc_true_pgc_count++;
-              }
-
-              int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
-              llc_pgc_distance_map[page_distance]++;
             }
 
             if constexpr (GHR_ON) {
               // Store this prefetch request in GHR to bootstrap SPP learning when
               // we see a ST miss (i.e., accessing a new page)
-              GHR.update_entry(curr_sig, confidence_q[i], spp_dev_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
+              GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
             }
           } else {
             if (is_prefetch_in_this_level) {
@@ -225,20 +238,20 @@ uint32_t spp_dev_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champ
   return metadata_in;
 }
 
-uint32_t spp_dev_pgc_ideal::prefetcher_cache_fill(champsim::address addr, long set, long way, uint8_t prefetch, champsim::address evicted_addr,
-                                                  uint32_t metadata_in)
+uint32_t spp_pgc_ideal::prefetcher_cache_fill(champsim::address addr, long set, long way, uint8_t prefetch, champsim::address evicted_addr,
+                                              uint32_t metadata_in)
 {
   if constexpr (FILTER_ON) {
     if constexpr (SPP_DEBUG_PRINT) {
       std::cout << std::endl;
     }
-    FILTER.check(evicted_addr, spp_dev_pgc_ideal::L2C_EVICT);
+    FILTER.check(evicted_addr, spp_pgc_ideal::L2C_EVICT);
   }
 
   return metadata_in;
 }
 
-void spp_dev_pgc_ideal::prefetcher_final_stats()
+void spp_pgc_ideal::prefetcher_final_stats()
 {
   std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n";
   std::cout << "[SPP] l2c prefetches: " << l2c_prefetch_count << "\n";
@@ -290,7 +303,7 @@ void spp_dev_pgc_ideal::prefetcher_final_stats()
 }
 
 // TODO: Find a good 64-bit hash function
-uint64_t spp_dev_pgc_ideal::get_hash(uint64_t key)
+uint64_t spp_pgc_ideal::get_hash(uint64_t key)
 {
   // Robert Jenkins' 32 bit mix function
   key += (key << 12);
@@ -308,8 +321,8 @@ uint64_t spp_dev_pgc_ideal::get_hash(uint64_t key)
   return key;
 }
 
-void spp_dev_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr, uint32_t& last_sig, uint32_t& curr_sig,
-                                                             typename offset_type::difference_type& delta)
+void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr, uint32_t& last_sig, uint32_t& curr_sig,
+                                                         typename offset_type::difference_type& delta)
 {
   auto set = get_hash(champsim::page_number{addr}.to<uint64_t>()) % ST_SET;
   auto match = ST_WAY;
@@ -430,7 +443,7 @@ void spp_dev_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address a
   lru[set][match] = 0; // Promote to the MRU position
 }
 
-void spp_dev_pgc_ideal::PATTERN_TABLE::update_pattern(uint32_t last_sig, typename offset_type::difference_type curr_delta)
+void spp_pgc_ideal::PATTERN_TABLE::update_pattern(uint32_t last_sig, typename offset_type::difference_type curr_delta)
 {
   // Update (sig, delta) correlation
   uint32_t set = get_hash(last_sig) % PT_SET, match = 0;
@@ -490,9 +503,9 @@ void spp_dev_pgc_ideal::PATTERN_TABLE::update_pattern(uint32_t last_sig, typenam
   }
 }
 
-void spp_dev_pgc_ideal::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vector<typename offset_type::difference_type>& delta_q,
-                                                    std::vector<uint32_t>& confidence_q, uint32_t& lookahead_way, uint32_t& lookahead_conf, uint32_t& pf_q_tail,
-                                                    uint32_t& depth)
+void spp_pgc_ideal::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vector<typename offset_type::difference_type>& delta_q,
+                                                std::vector<uint32_t>& confidence_q, uint32_t& lookahead_way, uint32_t& lookahead_conf, uint32_t& pf_q_tail,
+                                                uint32_t& depth)
 {
   // Update (sig, delta) correlation
   uint32_t set = get_hash(curr_sig) % PT_SET, local_conf = 0, pf_conf = 0, max_conf = 0;
@@ -539,7 +552,7 @@ void spp_dev_pgc_ideal::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vect
   }
 }
 
-bool spp_dev_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FILTER_REQUEST filter_request)
+bool spp_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FILTER_REQUEST filter_request)
 {
   champsim::block_number cache_line{check_addr};
   auto hash = get_hash(cache_line.to<uint64_t>());
@@ -551,7 +564,7 @@ bool spp_dev_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FIL
   }
 
   switch (filter_request) {
-  case spp_dev_pgc_ideal::SPP_L2C_PREFETCH:
+  case spp_pgc_ideal::SPP_L2C_PREFETCH:
     if ((valid[quotient] || useful[quotient]) && remainder_tag[quotient] == remainder) {
       if constexpr (SPP_DEBUG_PRINT) {
         std::cout << "[FILTER] " << __func__ << " line is already in the filter check_addr: " << check_addr << " cache_line: " << cache_line;
@@ -572,7 +585,7 @@ bool spp_dev_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FIL
     }
     break;
 
-  case spp_dev_pgc_ideal::SPP_LLC_PREFETCH:
+  case spp_pgc_ideal::SPP_LLC_PREFETCH:
     if ((valid[quotient] || useful[quotient]) && remainder_tag[quotient] == remainder) {
       if constexpr (SPP_DEBUG_PRINT) {
         std::cout << "[FILTER] " << __func__ << " line is already in the filter check_addr: " << check_addr << " cache_line: " << cache_line;
@@ -597,7 +610,7 @@ bool spp_dev_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FIL
     }
     break;
 
-  case spp_dev_pgc_ideal::L2C_DEMAND:
+  case spp_pgc_ideal::L2C_DEMAND:
     if ((remainder_tag[quotient] == remainder) && (useful[quotient] == 0)) {
       useful[quotient] = 1;
       if (valid[quotient]) {
@@ -617,7 +630,7 @@ bool spp_dev_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FIL
     }
     break;
 
-  case spp_dev_pgc_ideal::L2C_EVICT:
+  case spp_pgc_ideal::L2C_EVICT:
     // Decrease global pf_useful counter when there is a useless prefetch (prefetched but not used)
     if (valid[quotient] && !useful[quotient] && _parent->GHR.pf_useful)
       _parent->GHR.pf_useful--;
@@ -638,8 +651,8 @@ bool spp_dev_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FIL
   return true;
 }
 
-void spp_dev_pgc_ideal::GLOBAL_REGISTER::update_entry(uint32_t pf_sig, uint32_t pf_confidence, offset_type pf_offset,
-                                                      typename offset_type::difference_type pf_delta)
+void spp_pgc_ideal::GLOBAL_REGISTER::update_entry(uint32_t pf_sig, uint32_t pf_confidence, offset_type pf_offset,
+                                                  typename offset_type::difference_type pf_delta)
 {
   // NOTE: GHR implementation is slightly different from the original paper
   // Instead of matching (last_offset + delta), GHR simply stores and matches the pf_offset
@@ -693,7 +706,7 @@ void spp_dev_pgc_ideal::GLOBAL_REGISTER::update_entry(uint32_t pf_sig, uint32_t 
   delta[victim_way] = pf_delta;
 }
 
-uint32_t spp_dev_pgc_ideal::GLOBAL_REGISTER::check_entry(offset_type page_offset)
+uint32_t spp_pgc_ideal::GLOBAL_REGISTER::check_entry(offset_type page_offset)
 {
   uint32_t max_conf = 0, max_conf_way = MAX_GHR_ENTRY;
 

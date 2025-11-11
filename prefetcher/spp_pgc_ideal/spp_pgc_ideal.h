@@ -1,5 +1,5 @@
-#ifndef SPP_DEV_PGC_IDEAL_H
-#define SPP_DEV_PGC_IDEAL_H
+#ifndef SPP_PGC_IDEAL_H
+#define SPP_PGC_IDEAL_H
 
 #include <cstdint>
 #include <vector>
@@ -9,7 +9,7 @@
 #include "msl/lru_table.h"
 #include "vmem.h"
 
-struct spp_dev_pgc_ideal : public champsim::modules::prefetcher {
+struct spp_pgc_ideal : public champsim::modules::prefetcher {
 
   // SPP functional knobs
   constexpr static bool LOOKAHEAD_ON = true;
@@ -94,7 +94,7 @@ struct spp_dev_pgc_ideal : public champsim::modules::prefetcher {
     };
 
   public:
-    spp_dev_pgc_ideal* _parent;
+    spp_pgc_ideal* _parent;
     using tag_type = champsim::address_slice<tag_extent>;
 
     bool valid[ST_SET][ST_WAY];
@@ -120,7 +120,7 @@ struct spp_dev_pgc_ideal : public champsim::modules::prefetcher {
   class PATTERN_TABLE
   {
   public:
-    spp_dev_pgc_ideal* _parent;
+    spp_pgc_ideal* _parent;
     typename offset_type::difference_type delta[PT_SET][PT_WAY];
     uint32_t c_delta[PT_SET][PT_WAY], c_sig[PT_SET];
 
@@ -143,7 +143,7 @@ struct spp_dev_pgc_ideal : public champsim::modules::prefetcher {
   class PREFETCH_FILTER
   {
   public:
-    spp_dev_pgc_ideal* _parent;
+    spp_pgc_ideal* _parent;
     uint64_t remainder_tag[FILTER_SET];
     bool valid[FILTER_SET], // Consider this as "prefetched"
         useful[FILTER_SET], // Consider this as "used"
@@ -165,7 +165,7 @@ struct spp_dev_pgc_ideal : public champsim::modules::prefetcher {
   class GLOBAL_REGISTER
   {
   public:
-    spp_dev_pgc_ideal* _parent;
+    spp_pgc_ideal* _parent;
     // Global counters to calculate global prefetching accuracy
     uint32_t pf_useful, pf_issued;
     uint32_t global_accuracy; // Alpha value in Section III. Equation 3
