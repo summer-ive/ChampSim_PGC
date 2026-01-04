@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from collections import deque
 import argparse
+import os
 
 # 並列ジョブ数
 NJOBS = 126
@@ -55,6 +56,38 @@ def main():
         trace_file = trace_files.popleft()
         if trace_file.stem in trace_filter:
             trace_files.append(trace_file)
+
+    jobs = []
+    # 一括実行ジョブ作成
+    for trace_file in trace_files:
+        jobs.append((trace_file, log_dir))
+
+    jobs_count = len(jobs)
+    workers_count = max(1, min(NJOBS, os.cpu_count() or 1, jobs_count))
+    print(f"{datetime.now():%H:%M:%S} Launching {jobs_count} jobs with {workers_count} workers")
+
+    # 並列実行
+    with ThreadPoolExecutor(max_workers=workers_count) as executor:
+        futures = []
+        for trace_file, log_dir in jobs:
+            futures.append(
+                executor.submit(
+                    run_trace,
+                    trace_path=trace_file,
+                    log_dir=log_dir,
+                )
+            )
+
+        done = 0
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                print(f"[{datetime.now():%H:%M:%S}] [ERROR] {type(e).__name__}: {e}")
+            finally:
+                done += 1
+                if done % 10 == 0 or done == jobs_count:
+                    print(f"{datetime.now():%H:%M:%S} Progress: {done}/{jobs_count} finished")
 
     # 並列実行
     with ThreadPoolExecutor(max_workers=NJOBS) as executor:
