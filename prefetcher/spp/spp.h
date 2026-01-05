@@ -1,5 +1,5 @@
-#ifndef spp_dev_h
-#define spp_dev_h
+#ifndef SPP_H
+#define SPP_H
 
 #include <cstdint>
 #include <vector>
@@ -8,7 +8,7 @@
 #include "modules.h"
 #include "msl/lru_table.h"
 
-struct spp_dev : public champsim::modules::prefetcher {
+struct spp : public champsim::modules::prefetcher {
 
   // SPP functional knobs
   constexpr static bool LOOKAHEAD_ON = true;
@@ -47,9 +47,12 @@ struct spp_dev : public champsim::modules::prefetcher {
   constexpr static uint32_t GLOBAL_COUNTER_MAX = ((1 << GLOBAL_COUNTER_BIT) - 1);
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
+  // Statistics variants for simulation
+  uint64_t total_prefetch_count = 0;
+
   using prefetcher::prefetcher;
-  uint32_t prefetcher_cache_operate(champsim::address addr, champsim::address ip, uint8_t cache_hit, bool useful_prefetch, access_type type,
-                                    uint32_t metadata_in);
+  uint32_t prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,
+                                    bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in);
   uint32_t prefetcher_cache_fill(champsim::address addr, long set, long way, uint8_t prefetch, champsim::address evicted_addr, uint32_t metadata_in);
 
   void prefetcher_initialize();
@@ -71,7 +74,7 @@ struct spp_dev : public champsim::modules::prefetcher {
     };
 
   public:
-    spp_dev* _parent;
+    spp* _parent;
     using tag_type = champsim::address_slice<tag_extent>;
 
     bool valid[ST_SET][ST_WAY];
@@ -97,7 +100,7 @@ struct spp_dev : public champsim::modules::prefetcher {
   class PATTERN_TABLE
   {
   public:
-    spp_dev* _parent;
+    spp* _parent;
     typename offset_type::difference_type delta[PT_SET][PT_WAY];
     uint32_t c_delta[PT_SET][PT_WAY], c_sig[PT_SET];
 
@@ -120,7 +123,7 @@ struct spp_dev : public champsim::modules::prefetcher {
   class PREFETCH_FILTER
   {
   public:
-    spp_dev* _parent;
+    spp* _parent;
     uint64_t remainder_tag[FILTER_SET];
     bool valid[FILTER_SET], // Consider this as "prefetched"
         useful[FILTER_SET]; // Consider this as "used"
@@ -140,7 +143,7 @@ struct spp_dev : public champsim::modules::prefetcher {
   class GLOBAL_REGISTER
   {
   public:
-    spp_dev* _parent;
+    spp* _parent;
     // Global counters to calculate global prefetching accuracy
     uint32_t pf_useful, pf_issued;
     uint32_t global_accuracy; // Alpha value in Section III. Equation 3
