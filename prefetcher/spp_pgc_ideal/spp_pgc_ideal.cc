@@ -345,7 +345,16 @@ void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr,
         if (delta) {
           // Build a new sig based on 7-bit sign magnitude representation of delta
           // sig_delta = (delta < 0) ? ((((-1) * delta) & 0x3F) + 0x40) : delta;
-          sig_delta = (delta < 0) ? (((-1) * delta) + (1 << (SIG_DELTA_BIT - 1))) : delta;
+
+          // magnitude: clamp to 6-bit (0..63)
+          long mag = std::labs((long)delta);
+          const long mag_max = (1L << (SIG_DELTA_BIT - 1)) - 1; // 63 when SIG_DELTA_BIT=7
+          if (mag > mag_max)
+            mag = mag_max;
+
+          // sign-magnitude encoding
+          sig_delta = (delta < 0) ? (mag | (1L << (SIG_DELTA_BIT - 1))) : mag;
+
           sig[set][match] = ((last_sig << SIG_SHIFT) ^ sig_delta) & SIG_MASK;
           curr_sig = sig[set][match];
           last_offset[set][match] = unit_offset;
