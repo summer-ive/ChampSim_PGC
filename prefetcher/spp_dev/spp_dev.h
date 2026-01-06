@@ -1,5 +1,5 @@
-#ifndef spp_dev_h
-#define spp_dev_h
+#ifndef SPP_H
+#define SPP_H
 
 #include <cstdint>
 #include <vector>
