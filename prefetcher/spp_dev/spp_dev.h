@@ -1,5 +1,5 @@
-#ifndef SPP_H
-#define SPP_H
+#ifndef spp_dev_h
+#define spp_dev_h
 
 #include <cstdint>
 #include <vector>
@@ -48,8 +48,8 @@ struct spp_dev : public champsim::modules::prefetcher {
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
   using prefetcher::prefetcher;
-  uint32_t prefetcher_cache_operate(champsim::address addr, champsim::address ip, uint8_t cache_hit, bool useful_prefetch, access_type type,
-                                    uint32_t metadata_in);
+  uint32_t prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,
+                                    bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in);
   uint32_t prefetcher_cache_fill(champsim::address addr, long set, long way, uint8_t prefetch, champsim::address evicted_addr, uint32_t metadata_in);
 
   void prefetcher_initialize();
