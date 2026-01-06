@@ -327,7 +327,7 @@ void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr,
   auto set = get_hash(spp_pgc_ideal::unit_number{addr}.to<uint64_t>()) % ST_SET;
   auto match = ST_WAY;
   tag_type partial_page{addr};
-  offset_type page_offset{addr};
+  offset_type unit_offset{addr};
   uint8_t ST_hit = 0;
   long sig_delta = 0;
 
@@ -340,7 +340,7 @@ void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr,
     for (match = 0; match < ST_WAY; match++) {
       if (valid[set][match] && (tag[set][match] == partial_page)) {
         last_sig = sig[set][match];
-        delta = champsim::offset(last_offset[set][match], page_offset);
+        delta = champsim::offset(last_offset[set][match], unit_offset);
 
         if (delta) {
           // Build a new sig based on 7-bit sign magnitude representation of delta
@@ -348,13 +348,13 @@ void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr,
           sig_delta = (delta < 0) ? (((-1) * delta) + (1 << (SIG_DELTA_BIT - 1))) : delta;
           sig[set][match] = ((last_sig << SIG_SHIFT) ^ sig_delta) & SIG_MASK;
           curr_sig = sig[set][match];
-          last_offset[set][match] = page_offset;
+          last_offset[set][match] = unit_offset;
 
           if constexpr (SPP_DEBUG_PRINT) {
             std::cout << "[ST] " << __func__ << " hit set: " << set << " way: " << match;
             std::cout << " valid: " << valid[set][match] << " tag: " << std::hex << tag[set][match];
             std::cout << " last_sig: " << last_sig << " curr_sig: " << curr_sig;
-            std::cout << " delta: " << std::dec << delta << " last_offset: " << page_offset << std::endl;
+            std::cout << " delta: " << std::dec << delta << " last_offset: " << unit_offset << std::endl;
           }
         } else
           last_sig = 0; // Hitting the same cache line, delta is zero
@@ -373,12 +373,12 @@ void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr,
         tag[set][match] = partial_page;
         sig[set][match] = 0;
         curr_sig = sig[set][match];
-        last_offset[set][match] = page_offset;
+        last_offset[set][match] = unit_offset;
 
         if constexpr (SPP_DEBUG_PRINT) {
           std::cout << "[ST] " << __func__ << " invalid set: " << set << " way: " << match;
           std::cout << " valid: " << valid[set][match] << " tag: " << std::hex << partial_page;
-          std::cout << " sig: " << sig[set][match] << " last_offset: " << std::dec << page_offset << std::endl;
+          std::cout << " sig: " << sig[set][match] << " last_offset: " << std::dec << unit_offset << std::endl;
         }
 
         break;
@@ -394,12 +394,12 @@ void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr,
           tag[set][match] = partial_page;
           sig[set][match] = 0;
           curr_sig = sig[set][match];
-          last_offset[set][match] = page_offset;
+          last_offset[set][match] = unit_offset;
 
           if constexpr (SPP_DEBUG_PRINT) {
             std::cout << "[ST] " << __func__ << " miss set: " << set << " way: " << match;
             std::cout << " valid: " << valid[set][match] << " victim tag: " << std::hex << tag[set][match] << " new tag: " << partial_page;
-            std::cout << " sig: " << sig[set][match] << " last_offset: " << std::dec << page_offset << std::endl;
+            std::cout << " sig: " << sig[set][match] << " last_offset: " << std::dec << unit_offset << std::endl;
           }
 
           break;
@@ -416,7 +416,7 @@ void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr,
 
   if constexpr (GHR_ON) {
     if (ST_hit == 0) {
-      uint32_t GHR_found = _parent->GHR.check_entry(page_offset);
+      uint32_t GHR_found = _parent->GHR.check_entry(unit_offset);
       if (GHR_found < MAX_GHR_ENTRY) {
         sig_delta = (_parent->GHR.delta[GHR_found] < 0) ? (((-1) * _parent->GHR.delta[GHR_found]) + (1 << (SIG_DELTA_BIT - 1))) : _parent->GHR.delta[GHR_found];
         sig[set][match] = ((_parent->GHR.sig[GHR_found] << SIG_SHIFT) ^ sig_delta) & SIG_MASK;
@@ -706,12 +706,12 @@ void spp_pgc_ideal::GLOBAL_REGISTER::update_entry(uint32_t pf_sig, uint32_t pf_c
   delta[victim_way] = pf_delta;
 }
 
-uint32_t spp_pgc_ideal::GLOBAL_REGISTER::check_entry(offset_type page_offset)
+uint32_t spp_pgc_ideal::GLOBAL_REGISTER::check_entry(offset_type unit_offset)
 {
   uint32_t max_conf = 0, max_conf_way = MAX_GHR_ENTRY;
 
   for (uint32_t i = 0; i < MAX_GHR_ENTRY; i++) {
-    if ((offset[i] == page_offset) && (max_conf < confidence[i])) {
+    if ((offset[i] == unit_offset) && (max_conf < confidence[i])) {
       max_conf = confidence[i];
       max_conf_way = i;
     }

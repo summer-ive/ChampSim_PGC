@@ -87,10 +87,10 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
   };
   using unit_number = champsim::address_slice<unit_number_extent>;
 
-  struct block_in_page_extent : champsim::dynamic_extent {
-    block_in_page_extent() : dynamic_extent(champsim::data::bits{SIG_UNIT_BIT}, champsim::data::bits{LOG2_BLOCK_SIZE}) {}
+  struct block_in_unit_extent : champsim::dynamic_extent {
+    block_in_unit_extent() : dynamic_extent(champsim::data::bits{SIG_UNIT_BIT}, champsim::data::bits{LOG2_BLOCK_SIZE}) {}
   };
-  using offset_type = champsim::address_slice<block_in_page_extent>;
+  using offset_type = champsim::address_slice<block_in_unit_extent>;
 
   class SIGNATURE_TABLE
   {
