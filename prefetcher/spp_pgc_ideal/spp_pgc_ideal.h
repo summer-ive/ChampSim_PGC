@@ -82,6 +82,11 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
   enum FILTER_REQUEST { SPP_L2C_PREFETCH, SPP_LLC_PREFETCH, L2C_DEMAND, L2C_EVICT }; // Request type for prefetch filter
   static uint64_t get_hash(uint64_t key);
 
+  struct unit_number_extent : champsim::dynamic_extent {
+    unit_number_extent() : dynamic_extent(champsim::data::bits{std::numeric_limits<uint64_t>::digits}, champsim::data::bits{SIG_UNIT_BIT}) {}
+  };
+  using unit_number = champsim::address_slice<unit_number_extent>;
+
   struct block_in_page_extent : champsim::dynamic_extent {
     block_in_page_extent() : dynamic_extent(champsim::data::bits{SIG_UNIT_BIT}, champsim::data::bits{LOG2_BLOCK_SIZE}) {}
   };

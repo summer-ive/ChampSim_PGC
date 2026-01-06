@@ -324,7 +324,7 @@ uint64_t spp_pgc_ideal::get_hash(uint64_t key)
 void spp_pgc_ideal::SIGNATURE_TABLE::read_and_update_sig(champsim::address addr, uint32_t& last_sig, uint32_t& curr_sig,
                                                          typename offset_type::difference_type& delta)
 {
-  auto set = get_hash(champsim::page_number{addr}.to<uint64_t>()) % ST_SET;
+  auto set = get_hash(spp_pgc_ideal::unit_number{addr}.to<uint64_t>()) % ST_SET;
   auto match = ST_WAY;
   tag_type partial_page{addr};
   offset_type page_offset{addr};
