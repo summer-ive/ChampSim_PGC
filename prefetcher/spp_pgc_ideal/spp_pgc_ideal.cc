@@ -100,7 +100,6 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
     confidence_q[i] = 0;
     delta_q[i] = 0;
   }
-  confidence_q[0] = 100; // TODO: Remove this line after implementing statistics counting
   GHR.global_accuracy = GHR.pf_issued ? ((100 * GHR.pf_useful) / GHR.pf_issued) : 0;
 
   if constexpr (SPP_DEBUG_PRINT) {
@@ -603,10 +602,9 @@ void spp_pgc_ideal::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vector<t
 
   if (c_sig[set]) {
     for (uint32_t way = 0; way < PT_WAY; way++) {
-      // TODO: Uncomment after implementing statistics counting
-      // if (pf_q_tail >= delta_q.size()) {
-      //   break;
-      // }
+      if (pf_q_tail >= delta_q.size()) {
+        break;
+      }
 
       local_conf = (100 * c_delta[set][way]) / c_sig[set];
       pf_conf = depth ? (_parent->GHR.global_accuracy * c_delta[set][way] / c_sig[set] * lookahead_conf / 100) : local_conf;
