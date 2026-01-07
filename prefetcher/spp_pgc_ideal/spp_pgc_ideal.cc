@@ -32,6 +32,18 @@ void spp_pgc_ideal::prefetcher_initialize()
   GHR._parent = this;
 }
 
+void spp_pgc_ideal::reset_roi_status()
+{
+  for (auto& pair : count_map) {
+    pair.second = 0;
+  }
+  pgc_distance_map_l2c.clear();
+  pgc_distance_map_llc.clear();
+  narrowly_defined_pgc_distance_map_l2c.clear();
+  narrowly_defined_pgc_distance_map_llc.clear();
+  return;
+}
+
 bool spp_pgc_ideal::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
 {
   const champsim::page_number trigger_ppage{va_to_pa_ideal(trigger_cpu, trigger_vpage)};
@@ -72,6 +84,10 @@ void spp_pgc_ideal::prefetcher_cycle_operate() {}
 uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,
                                                  bool cache_hit, bool useful_prefetch, access_type type, uint32_t metadata_in)
 {
+  if (!intern_->warmup && !roi_stats_initialized) {
+    reset_roi_status();
+    roi_stats_initialized = true;
+  }
   const champsim::page_number trigger_ppage{trigger_paddr};
   const champsim::page_number trigger_vpage{trigger_vaddr};
   uint32_t last_sig = 0, curr_sig = 0, depth = 0;
@@ -84,7 +100,7 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
     confidence_q[i] = 0;
     delta_q[i] = 0;
   }
-  confidence_q[0] = 100;
+  confidence_q[0] = 100; // TODO: Remove this line after implementing statistics counting
   GHR.global_accuracy = GHR.pf_issued ? ((100 * GHR.pf_useful) / GHR.pf_issued) : 0;
 
   if constexpr (SPP_DEBUG_PRINT) {
@@ -118,29 +134,45 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
       champsim::address pf_paddr{champsim::block_number{base_paddr} + delta_q[i]};
       champsim::page_number pf_ppage{pf_paddr};
       champsim::page_number base_ppage{base_paddr};
+      bool is_pgc_candidate = (pf_ppage != trigger_ppage);               // Prefetch target page is different from the trigger page
+      bool is_narrowly_defined_pgc_candidate = (pf_ppage != base_ppage); // Prefetch request is crossing the physical page boundary
+      int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
+
+      // ここでcand集計
+      count_map["prefetch_candidate_total"]++;
 
       if (confidence_q[i] >= PF_THRESHOLD) {
         const bool is_prefetch_in_this_level = (confidence_q[i] >= FILL_THRESHOLD);
-
-        if (!is_pgc_enabled && (pf_ppage != trigger_ppage)) { // Case when PGC is disabled
-          if constexpr (GHR_ON) {
-            // Store this prefetch request in GHR to bootstrap SPP learning when
-            // we see a ST miss (i.e., accessing a new page)
-            GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
-          }
-          continue;
+        if (is_prefetch_in_this_level) {
+          count_map["prefetch_candidate_l2c"]++;
+        } else {
+          count_map["prefetch_candidate_llc"]++;
         }
 
-        if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
-          if (is_prefetch_in_this_level) {
-            l2c_discarded_pgc_request_count++;
-          } else {
-            llc_discarded_pgc_request_count++;
-          }
-          continue;
-        }
-
+        // prefetch filter check
         if (FILTER.check(pf_paddr, (is_prefetch_in_this_level ? spp_pgc_ideal::SPP_L2C_PREFETCH : spp_pgc_ideal::SPP_LLC_PREFETCH))) {
+
+          // case when PGC is disabled
+          if (!is_pgc_enabled && is_pgc_candidate) {
+            if constexpr (GHR_ON) {
+              // Store this prefetch request in GHR to bootstrap SPP learning when
+              // we see a ST miss (i.e., accessing a new page)
+              GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
+            }
+            continue;
+          }
+
+          // pgc page continuity check
+          if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
+            if (is_prefetch_in_this_level) {
+              count_map["trashed_va_discontinuous_pgc_l2c"]++;
+            } else {
+              count_map["trashed_va_discontinuous_pgc_llc"]++;
+            }
+            continue;
+          }
+
+          bool is_prefetch_succeed = prefetch_line(pf_paddr, is_prefetch_in_this_level, 0); // Use addr (not base_addr) to obey the same physical page boundary
 
           auto cache_line = champsim::block_number{pf_paddr};
           // ChampSimではハッシュ関数を用いてプリフェッチフィルタのスロット割当を行う。
@@ -148,46 +180,59 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
           uint64_t hash = get_hash(cache_line.to<uint64_t>());
           uint32_t q = (hash >> REMAINDER_BIT) & ((1 << QUOTIENT_BIT) - 1);
 
-          if (pf_ppage != trigger_ppage) { // Prefetch request is crossing the physical page boundary
-            if (is_pgc_enabled) {
-              if (is_prefetch_in_this_level) {
-                l2c_pgc_count++;
-                FILTER.is_pgc[q] = 1;
-
-                if (pf_ppage != base_ppage) {
-                  l2c_true_pgc_count++;
-                }
-
-                int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
-                l2c_pgc_distance_map[page_distance]++;
-              } else {
-                llc_pgc_count++;
-
-                if (pf_ppage != base_ppage) {
-                  llc_true_pgc_count++;
-                }
-
-                int page_distance = pf_ppage.to<int>() - trigger_ppage.to<int>();
-                llc_pgc_distance_map[page_distance]++;
+          if (is_prefetch_in_this_level) {
+            count_map["prefetch_request_l2c"]++;
+            if (is_pgc_candidate) {
+              count_map["pgc_request_l2c"]++;
+              if (is_narrowly_defined_pgc_candidate) {
+                count_map["narrowly_defined_pgc_request_l2c"]++;
               }
             }
+            if (is_prefetch_succeed) {
+              count_map["prefetch_issued_l2c"]++;
+              if (is_pgc_candidate) {
+                count_map["pgc_issued_l2c"]++;
+                pgc_distance_map_l2c[page_distance]++;
+                FILTER.is_pgc[q] = 1;
+                if (is_narrowly_defined_pgc_candidate) {
+                  count_map["narrowly_defined_pgc_issued_l2c"]++;
+                  narrowly_defined_pgc_distance_map_l2c[page_distance]++;
+                  FILTER.is_narrowly_defined_pgc[q] = 1;
+                }
+              } else {
+                FILTER.is_pgc[q] = 0;
+                FILTER.is_narrowly_defined_pgc[q] = 0;
+              }
+            }
+          } else {
+            count_map["prefetch_request_llc"]++;
+            if (is_pgc_candidate) {
+              count_map["pgc_request_llc"]++;
+              if (is_narrowly_defined_pgc_candidate) {
+                count_map["narrowly_defined_pgc_request_llc"]++;
+              }
+            }
+            if (is_prefetch_succeed) {
+              count_map["prefetch_issued_llc"]++;
+              if (is_pgc_candidate) {
+                count_map["pgc_issued_llc"]++;
+                pgc_distance_map_llc[page_distance]++;
+                if (is_narrowly_defined_pgc_candidate) {
+                  count_map["narrowly_defined_pgc_issued_llc"]++;
+                  narrowly_defined_pgc_distance_map_llc[page_distance]++;
+                }
+              }
+            }
+          }
 
+          if (is_pgc_candidate) {
             if constexpr (GHR_ON) {
               // Store this prefetch request in GHR to bootstrap SPP learning when
               // we see a ST miss (i.e., accessing a new page)
               GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
             }
-          } else {
-            if (is_prefetch_in_this_level) {
-              FILTER.is_pgc[q] = 0;
-            }
           }
-
-          prefetch_line(pf_paddr, is_prefetch_in_this_level, 0); // Use addr (not base_addr) to obey the same physical page boundary
-
-          total_prefetch_count++;
           if (is_prefetch_in_this_level) {
-            l2c_prefetch_count++;
             GHR.pf_issued++;
             if (GHR.pf_issued > GLOBAL_COUNTER_MAX) {
               GHR.pf_issued >>= 1;
@@ -196,8 +241,6 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
             if constexpr (SPP_DEBUG_PRINT) {
               std::cout << "[ChampSim] SPP L2 prefetch issued GHR.pf_issued: " << GHR.pf_issued << " GHR.pf_useful: " << GHR.pf_useful << std::endl;
             }
-          } else {
-            llc_prefetch_count++;
           }
 
           if constexpr (SPP_DEBUG_PRINT) {
@@ -208,8 +251,9 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
         }
         do_lookahead = 1;
       } else {
-        if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage) && (pf_ppage != trigger_ppage)) {
-          below_fill_threshold_pgc_request_count++;
+        count_map["trashed_prefetch_low_confidence"]++;
+        if (is_pgc_enabled && (pf_ppage != trigger_ppage)) {
+          count_map["trashed_pgc_low_confidence"]++;
         }
       }
     }
@@ -253,53 +297,91 @@ uint32_t spp_pgc_ideal::prefetcher_cache_fill(champsim::address addr, long set, 
 
 void spp_pgc_ideal::prefetcher_final_stats()
 {
-  std::cout << "[SPP] total prefetches: " << total_prefetch_count << "\n";
-  std::cout << "[SPP] l2c prefetches: " << l2c_prefetch_count << "\n";
-  std::cout << "[SPP] llc prefetches: " << llc_prefetch_count << "\n";
+  std::cout << "[SPP] total prefetch candidate: " << count_map["prefetch_candidate_l2c"] + count_map["prefetch_candidate_llc"] << "\n";
+  std::cout << "[SPP] l2c prefetch candidate: " << count_map["prefetch_candidate_l2c"] << "\n";
+  std::cout << "[SPP] llc prefetch candidate: " << count_map["prefetch_candidate_llc"] << "\n";
 
-  std::cout << "[SPP] total page-crossing prefetch count: " << l2c_pgc_count + llc_pgc_count << "\n";
-  std::cout << "[SPP] l2c page-crossing prefetch count: " << l2c_pgc_count << "\n";
-  std::cout << "[SPP] llc page-crossing prefetch count: " << llc_pgc_count << "\n";
+  std::cout << "[SPP] trashed prefetch candidates with lower confidence than llc fill threshold: " << count_map["trashed_prefetch_low_confidence"] << "\n";
+  std::cout << "[SPP] trashed pgc candidates with lower confidence than llc fill threshold: " << count_map["trashed_pgc_low_confidence"] << "\n";
 
-  std::cout << "[SPP] total true page-crossing request count: "
-            << l2c_true_pgc_count + llc_true_pgc_count + l2c_discarded_pgc_request_count + llc_discarded_pgc_request_count << "\n";
-  std::cout << "[SPP] l2c true page-crossing request count: " << l2c_true_pgc_count + l2c_discarded_pgc_request_count << "\n";
-  std::cout << "[SPP] llc true page-crossing request count: " << llc_true_pgc_count + llc_discarded_pgc_request_count << "\n";
+  std::cout << "[SPP] trashed l2c pgc candidates with virtual address discontinuity: " << count_map["trashed_va_discontinuous_pgc_l2c"] << "\n";
+  std::cout << "[SPP] trashed llc pgc candidates with virtual address discontinuity: " << count_map["trashed_va_discontinuous_pgc_llc"] << "\n";
 
-  std::cout << "[SPP] total true page-crossing prefetch count: " << l2c_true_pgc_count + llc_true_pgc_count << "\n";
-  std::cout << "[SPP] l2c true page-crossing prefetch count: " << l2c_true_pgc_count << "\n";
-  std::cout << "[SPP] llc true page-crossing prefetch count: " << llc_true_pgc_count << "\n";
+  std::cout << "[SPP] total prefetch request: " << count_map["prefetch_request_l2c"] + count_map["prefetch_request_llc"] << "\n";
+  std::cout << "[SPP] l2c prefetch request: " << count_map["prefetch_request_l2c"] << "\n";
+  std::cout << "[SPP] llc prefetch request: " << count_map["prefetch_request_llc"] << "\n";
+  std::cout << "[SPP] total pgc request: " << count_map["pgc_request_l2c"] + count_map["pgc_request_llc"] << "\n";
+  std::cout << "[SPP] l2c pgc request: " << count_map["pgc_request_l2c"] << "\n";
+  std::cout << "[SPP] llc pgc request: " << count_map["pgc_request_llc"] << "\n";
+  std::cout << "[SPP] total narrowly defined pgc request: " << count_map["narrowly_defined_pgc_request_l2c"] + count_map["narrowly_defined_pgc_request_llc"]
+            << "\n";
+  std::cout << "[SPP] l2c narrowly defined pgc request: " << count_map["narrowly_defined_pgc_request_l2c"] << "\n";
+  std::cout << "[SPP] llc narrowly defined pgc request: " << count_map["narrowly_defined_pgc_request_llc"] << "\n";
 
-  std::cout << "[SPP] below fill-threshold discarded page-crossing request count: " << below_fill_threshold_pgc_request_count << "\n";
+  std::cout << "[SPP] total prefetch issued: " << count_map["prefetch_issued_l2c"] + count_map["prefetch_issued_llc"] << "\n";
+  std::cout << "[SPP] l2c prefetch issued: " << count_map["prefetch_issued_l2c"] << "\n";
+  std::cout << "[SPP] llc prefetch issued: " << count_map["prefetch_issued_llc"] << "\n";
+  std::cout << "[SPP] total pgc issued: " << count_map["pgc_issued_l2c"] + count_map["pgc_issued_llc"] << "\n";
+  std::cout << "[SPP] l2c pgc issued: " << count_map["pgc_issued_l2c"] << "\n";
+  std::cout << "[SPP] llc pgc issued: " << count_map["pgc_issued_llc"] << "\n";
+  std::cout << "[SPP] total narrowly defined pgc issued: " << count_map["narrowly_defined_pgc_issued_l2c"] + count_map["narrowly_defined_pgc_issued_llc"]
+            << "\n";
+  std::cout << "[SPP] l2c narrowly defined pgc issued: " << count_map["narrowly_defined_pgc_issued_l2c"] << "\n";
+  std::cout << "[SPP] llc narrowly defined pgc issued: " << count_map["narrowly_defined_pgc_issued_llc"] << "\n";
 
-  std::cout << "[SPP] total discarded page-crossing request count: " << l2c_discarded_pgc_request_count + llc_discarded_pgc_request_count << "\n";
-  std::cout << "[SPP] l2c discarded page-crossing request count: " << l2c_discarded_pgc_request_count << "\n";
-  std::cout << "[SPP] llc discarded page-crossing request count: " << llc_discarded_pgc_request_count << "\n";
+  std::cout << "[SPP] l2c useful prefetch: " << count_map["useful_prefetch_l2c"] << "\n";
+  std::cout << "[SPP] l2c useful pgc: " << count_map["useful_pgc_l2c"] << "\n";
+  std::cout << "[SPP] l2c useful narrowly defined pgc: " << count_map["useful_narrowly_defined_pgc_l2c"] << "\n";
 
-  std::unordered_map<int, uint64_t> total_pgc_distance_map;
-  for (auto& [dist, cnt] : l2c_pgc_distance_map)
-    total_pgc_distance_map[dist] += cnt;
-  for (auto& [dist, cnt] : llc_pgc_distance_map)
-    total_pgc_distance_map[dist] += cnt;
+  std::unordered_map<int, uint64_t> pgc_distance_map_total;
+  for (auto& [dist, cnt] : pgc_distance_map_l2c)
+    pgc_distance_map_total[dist] += cnt;
+  for (auto& [dist, cnt] : pgc_distance_map_llc)
+    pgc_distance_map_total[dist] += cnt;
+  std::unordered_map<int, uint64_t> narrowly_defined_pgc_distance_map_total;
+  for (auto& [dist, cnt] : narrowly_defined_pgc_distance_map_l2c)
+    narrowly_defined_pgc_distance_map_total[dist] += cnt;
+  for (auto& [dist, cnt] : narrowly_defined_pgc_distance_map_llc)
+    narrowly_defined_pgc_distance_map_total[dist] += cnt;
 
-  std::vector<std::pair<int, uint64_t>> total_pgc_distance_vector(total_pgc_distance_map.begin(), total_pgc_distance_map.end());
-  std::vector<std::pair<int, uint64_t>> l2c_pgc_distance_vector(l2c_pgc_distance_map.begin(), l2c_pgc_distance_map.end());
-  std::vector<std::pair<int, uint64_t>> llc_pgc_distance_vector(llc_pgc_distance_map.begin(), llc_pgc_distance_map.end());
+  std::vector<std::pair<int, uint64_t>> pgc_distance_vector_total(pgc_distance_map_total.begin(), pgc_distance_map_total.end());
+  std::vector<std::pair<int, uint64_t>> pgc_distance_vector_l2c(pgc_distance_map_l2c.begin(), pgc_distance_map_l2c.end());
+  std::vector<std::pair<int, uint64_t>> pgc_distance_vector_llc(pgc_distance_map_llc.begin(), pgc_distance_map_llc.end());
+  std::vector<std::pair<int, uint64_t>> narrowly_defined_pgc_distance_vector_total(narrowly_defined_pgc_distance_map_total.begin(),
+                                                                                   narrowly_defined_pgc_distance_map_total.end());
+  std::vector<std::pair<int, uint64_t>> narrowly_defined_pgc_distance_vector_l2c(narrowly_defined_pgc_distance_map_l2c.begin(),
+                                                                                 narrowly_defined_pgc_distance_map_l2c.end());
+  std::vector<std::pair<int, uint64_t>> narrowly_defined_pgc_distance_vector_llc(narrowly_defined_pgc_distance_map_llc.begin(),
+                                                                                 narrowly_defined_pgc_distance_map_llc.end());
 
-  std::sort(total_pgc_distance_vector.begin(), total_pgc_distance_vector.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-  std::sort(l2c_pgc_distance_vector.begin(), l2c_pgc_distance_vector.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-  std::sort(llc_pgc_distance_vector.begin(), llc_pgc_distance_vector.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-  std::cout << "[SPP] total page-crossing distances:\n";
-  for (const auto& [dist, cnt] : total_pgc_distance_vector)
+  std::sort(pgc_distance_vector_total.begin(), pgc_distance_vector_total.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::sort(pgc_distance_vector_l2c.begin(), pgc_distance_vector_l2c.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::sort(pgc_distance_vector_llc.begin(), pgc_distance_vector_llc.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::sort(narrowly_defined_pgc_distance_vector_total.begin(), narrowly_defined_pgc_distance_vector_total.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::sort(narrowly_defined_pgc_distance_vector_l2c.begin(), narrowly_defined_pgc_distance_vector_l2c.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::sort(narrowly_defined_pgc_distance_vector_llc.begin(), narrowly_defined_pgc_distance_vector_llc.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+  std::cout << "[SPP] total pgc distance:\n";
+  for (const auto& [dist, cnt] : pgc_distance_vector_total)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
-  std::cout << "[SPP] l2c page-crossing distances:\n";
-  for (const auto& [dist, cnt] : l2c_pgc_distance_vector)
+  std::cout << "[SPP] l2c pgc distance:\n";
+  for (const auto& [dist, cnt] : pgc_distance_vector_l2c)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
-  std::cout << "[SPP] llc page-crossing distances:\n";
-  for (const auto& [dist, cnt] : llc_pgc_distance_vector)
+  std::cout << "[SPP] llc pgc distance:\n";
+  for (const auto& [dist, cnt] : pgc_distance_vector_llc)
     std::cout << "  distance " << dist << ": " << cnt << "\n";
 
-  std::cout << "[SPP] l2c useful pgc count: " << l2c_pgc_useful_count << "\n";
+  std::cout << "[SPP] total narrowly defined pgc distance:\n";
+  for (const auto& [dist, cnt] : narrowly_defined_pgc_distance_vector_total)
+    std::cout << "  distance " << dist << ": " << cnt << "\n";
+  std::cout << "[SPP] l2c narrowly defined pgc distance:\n";
+  for (const auto& [dist, cnt] : narrowly_defined_pgc_distance_vector_l2c)
+    std::cout << "  distance " << dist << ": " << cnt << "\n";
+  std::cout << "[SPP] llc narrowly defined pgc distance:\n";
+  for (const auto& [dist, cnt] : narrowly_defined_pgc_distance_vector_llc)
+    std::cout << "  distance " << dist << ": " << cnt << "\n";
 }
 
 // TODO: Find a good 64-bit hash function
@@ -521,6 +603,11 @@ void spp_pgc_ideal::PATTERN_TABLE::read_pattern(uint32_t curr_sig, std::vector<t
 
   if (c_sig[set]) {
     for (uint32_t way = 0; way < PT_WAY; way++) {
+      // TODO: Uncomment after implementing statistics counting
+      // if (pf_q_tail >= delta_q.size()) {
+      //   break;
+      // }
+
       local_conf = (100 * c_delta[set][way]) / c_sig[set];
       pf_conf = depth ? (_parent->GHR.global_accuracy * c_delta[set][way] / c_sig[set] * lookahead_conf / 100) : local_conf;
 
@@ -626,8 +713,12 @@ bool spp_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FILTER_
         _parent->GHR.pf_useful++; // This cache line was prefetched by SPP and actually used in the program
 
         // If this slot is derived from PGC, then count up PGC-useful.
+        _parent->count_map["useful_prefetch_l2c"]++;
         if (is_pgc[quotient]) {
-          _parent->l2c_pgc_useful_count++;
+          _parent->count_map["useful_pgc_l2c"]++;
+          if (is_narrowly_defined_pgc[quotient]) {
+            _parent->count_map["useful_narrowly_defined_pgc_l2c"]++;
+          }
         }
       }
 
@@ -649,6 +740,7 @@ bool spp_pgc_ideal::PREFETCH_FILTER::check(champsim::address check_addr, FILTER_
     useful[quotient] = 0;
     remainder_tag[quotient] = 0;
     is_pgc[quotient] = 0;
+    is_narrowly_defined_pgc[quotient] = 0;
     break;
 
   default:

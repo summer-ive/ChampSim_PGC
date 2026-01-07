@@ -55,19 +55,45 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
   bool is_pgc_enabled = true;
 
   // Statistics variants for PGC simulation
-  uint64_t total_prefetch_count = 0;            // total count of prefetch
-  uint64_t l2c_prefetch_count = 0;              // total count of l2c prefetch
-  uint64_t llc_prefetch_count = 0;              // total count of llc prefetch
-  uint64_t l2c_pgc_count = 0;                   // pgc among all l2c prefetches
-  uint64_t llc_pgc_count = 0;                   // pgc among all llc prefetches
-  uint64_t l2c_true_pgc_count = 0;              // count of narrowly defined l2c pgc including discarded ones
-  uint64_t llc_true_pgc_count = 0;              // count of narrowly defined llc pgc including discarded ones
-  uint64_t l2c_discarded_pgc_request_count = 0; // discarded l2c pgc request due to discontinuity on the virtual memory address
-  uint64_t llc_discarded_pgc_request_count = 0; // discarded llc pgc request due to discontinuity on the virtual memory address
-  uint64_t l2c_pgc_useful_count = 0;
-  uint64_t below_fill_threshold_pgc_request_count = 0;
-  std::unordered_map<int, uint64_t> l2c_pgc_distance_map;
-  std::unordered_map<int, uint64_t> llc_pgc_distance_map;
+  bool roi_stats_initialized = false;
+  void reset_roi_status();
+  std::unordered_map<std::string, uint64_t> count_map = {
+      // prefetch_candidate_total = prefetch_candidate_l2c + prefetch_candidate_llc + trashed_prefetch_low_confidence
+      {"prefetch_candidate_total", 0},        // total prefetch candidates read from Pattern Table
+      {"prefetch_candidate_l2c", 0},          // prefetch candidates for L2C with higher confidence than l2c fill threshold
+      {"prefetch_candidate_llc", 0},          // prefetch candidates for LLC with lower confidence than l2c fill threshold
+      {"trashed_prefetch_low_confidence", 0}, // not requested prefetch candidates with lower confidence than llc fill threshold
+      {"trashed_pgc_low_confidence", 0},      // not requested pgc candidates with lower confidence than llc fill threshold
+      // trashed pgcs below are narrowly defined pgc
+      {"trashed_va_discontinuous_pgc_l2c", 0}, // trashed l2c pgc request due to discontinuity on the virtual memory address
+      {"trashed_va_discontinuous_pgc_llc", 0}, // trashed llc pgc request due to discontinuity on the virtual memory address
+      // prefetch request
+      {"prefetch_request_l2c", 0},
+      {"prefetch_request_llc", 0},
+      {"pgc_request_l2c", 0},
+      {"pgc_request_llc", 0},
+      {"narrowly_defined_pgc_request_l2c", 0},
+      {"narrowly_defined_pgc_request_llc", 0},
+      // prefetch issued
+      {"prefetch_issued_l2c", 0},
+      {"prefetch_issued_llc", 0},
+      {"pgc_issued_l2c", 0},
+      {"pgc_issued_llc", 0},
+      {"narrowly_defined_pgc_issued_l2c", 0},
+      {"narrowly_defined_pgc_issued_llc", 0},
+      // prefetch useful
+      // TODO: llc useful metrics are not implemented
+      {"useful_prefetch_l2c", 0},
+      {"useful_prefetch_llc", 0},
+      {"useful_pgc_l2c", 0},
+      {"useful_pgc_llc", 0},
+      {"useful_narrowly_defined_pgc_l2c", 0},
+      {"useful_narrowly_defined_pgc_llc", 0},
+  };
+  std::unordered_map<int, uint64_t> pgc_distance_map_l2c;
+  std::unordered_map<int, uint64_t> pgc_distance_map_llc;
+  std::unordered_map<int, uint64_t> narrowly_defined_pgc_distance_map_l2c;
+  std::unordered_map<int, uint64_t> narrowly_defined_pgc_distance_map_llc;
   bool is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage);
 
   using prefetcher::prefetcher;
@@ -150,9 +176,10 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
   public:
     spp_pgc_ideal* _parent;
     uint64_t remainder_tag[FILTER_SET];
-    bool valid[FILTER_SET], // Consider this as "prefetched"
-        useful[FILTER_SET], // Consider this as "used"
-        is_pgc[FILTER_SET]; // Consider this as "page-crossing prefetched"
+    bool valid[FILTER_SET],                  // Consider this as "prefetched"
+        useful[FILTER_SET],                  // Consider this as "used"
+        is_pgc[FILTER_SET],                  // Consider this as "page-crossing prefetched"
+        is_narrowly_defined_pgc[FILTER_SET]; // Consider this as "narrowly defined page-crossing prefetched"
 
     PREFETCH_FILTER()
     {
@@ -161,6 +188,7 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
         valid[set] = 0;
         useful[set] = 0;
         is_pgc[set] = 0;
+        is_narrowly_defined_pgc[set] = 0;
       }
     }
 
