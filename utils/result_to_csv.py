@@ -51,7 +51,7 @@ RE_DRAM_REFRESH = re.compile(r"^Channel\s+(?P<ch>\d+)\s+REFRESHES\s+ISSUED:\s*(?
 # SPP
 RE_SPP_KV = re.compile(r"^\[SPP\]\s+(?P<key>[^:]+):\s*(?P<val>-?\d+)\s*$")
 
-RE_PGC_DIST_HEADER = re.compile(r"^\[SPP\]\s+(?P<scope>.+?)\s+page-crossing distances:\s*$")
+RE_PGC_DIST_HEADER = re.compile(r"^\[SPP\]\s+(?P<scope>.+?)\s+pgc distance:\s*$")
 RE_PGC_DIST_LINE = re.compile(r"^\s*distance\s+(?P<dist>-?\d+):\s*(?P<count>\d+)\s*$")
 
 
@@ -225,7 +225,7 @@ def parse_log(log_path: Path) -> tuple[dict[str, Any], list[tuple[str, int, int]
         # SPP distance distribution
         m = RE_PGC_DIST_HEADER.search(line)
         if m:
-            current_pgc_scope = sanitize(m.group("scope").strip().lower())
+            current_pgc_scope = sanitize(m.group("scope").strip().lower()) + "_pgc"
             continue
         m = RE_PGC_DIST_LINE.search(line)
         if m and current_pgc_scope is not None:
