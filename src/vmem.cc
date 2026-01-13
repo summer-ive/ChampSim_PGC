@@ -133,14 +133,20 @@ std::pair<champsim::page_number, champsim::chrono::clock::duration> VirtualMemor
   return std::pair{ppage_iter->second, is_allocated};
 }
 
+// returns the physical address of the PTE for the given virtual address at the given level
 std::pair<champsim::address, champsim::chrono::clock::duration> VirtualMemory::get_pte_pa(uint32_t cpu_num, champsim::page_number vaddr, std::size_t level)
 {
+  // allocate a new PTE page as `active_pte_page` if necessary
+  // the size of PTE pages can be smaller than the size of a physical page according to the config settings
+  // that is 4KB default, but if that is smaller than usual like 2KB or 1KB, one physical page can hold multiple PTE pages
+  // so we need to check the offset within the physical page here
+  // when the offset reaches 0, we need to allocate a new physical page for the next PTE page
   if (champsim::page_offset{next_pte_page} == champsim::page_offset{0}) {
     active_pte_page = ppage_front();
     ppage_pop();
   }
 
-  champsim::dynamic_extent pte_table_entry_extent{champsim::address::bits, shamt(level)};
+  champsim::dynamic_extent pte_table_entry_extent{champsim::address::bits, shamt(level)}; //
   auto [ppage, fault] =
       page_table.try_emplace({cpu_num, level, champsim::address_slice{pte_table_entry_extent, vaddr}}, champsim::splice(active_pte_page, next_pte_page));
 
