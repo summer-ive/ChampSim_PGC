@@ -46,9 +46,13 @@ void spp_pgc_ideal::reset_roi_status()
 
 bool spp_pgc_ideal::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
 {
-  const champsim::page_number trigger_ppage{va_to_pa_ideal(trigger_cpu, trigger_vpage)};
+  bool is_allocated;
+  champsim::page_number trigger_ppage;
+  std::tie(trigger_ppage, is_allocated) = va_to_pa_ideal(trigger_cpu, trigger_vpage);
+  if (!is_allocated) // trigger_vpage is not mapped to any physical page
+    return false;
 
-  if (pf_ppage == trigger_ppage)
+  if (pf_ppage == trigger_ppage) // same page
     return true;
   const long long step = (pf_ppage > trigger_ppage) ? 1 : -1;
   long long delta = 0;
@@ -56,12 +60,15 @@ bool spp_pgc_ideal::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_
     delta += step;
   }
 
-  auto cur_vpage = trigger_vpage;
-  auto cur_ppage = trigger_ppage;
+  champsim::page_number cur_vpage = trigger_vpage;
+  champsim::page_number cur_ppage = trigger_ppage;
 
   while (delta != 0) {
-    auto adj_vpage = cur_vpage + step;
-    auto adj_ppage = va_to_pa_ideal(trigger_cpu, adj_vpage);
+    champsim::page_number adj_vpage = cur_vpage + step;
+    champsim::page_number adj_ppage;
+    std::tie(adj_ppage, is_allocated) = va_to_pa_ideal(trigger_cpu, adj_vpage);
+    if (!is_allocated) // adj_vpage is not mapped to any physical page
+      return false;
 
     if (adj_ppage != (cur_ppage + step))
       return false;

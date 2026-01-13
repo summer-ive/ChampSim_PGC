@@ -104,9 +104,9 @@ void VirtualMemory::ppage_pop()
 
 std::size_t VirtualMemory::available_ppages() const { return (ppage_free_list.size()); }
 
-std::pair<champsim::page_number, champsim::chrono::clock::duration> VirtualMemory::va_to_pa(uint32_t cpu_num, champsim::page_number vaddr)
+std::pair<champsim::page_number, champsim::chrono::clock::duration> VirtualMemory::va_to_pa(uint32_t cpu_num, champsim::page_number vpage)
 {
-  auto [ppage, fault] = vpage_to_ppage_map.try_emplace({cpu_num, champsim::page_number{vaddr}}, ppage_front());
+  auto [ppage_iter, fault] = vpage_to_ppage_map.try_emplace({cpu_num, champsim::page_number{vpage}}, ppage_front());
 
   // this vpage doesn't yet have a ppage mapping
   if (fault) {
@@ -116,10 +116,21 @@ std::pair<champsim::page_number, champsim::chrono::clock::duration> VirtualMemor
   auto penalty = fault ? minor_fault_penalty : champsim::chrono::clock::duration::zero();
 
   if constexpr (champsim::debug_print) {
-    fmt::print("[VMEM] {} paddr: {} vpage: {} fault: {}\n", __func__, ppage->second, champsim::page_number{vaddr}, fault);
+    fmt::print("[VMEM] {} paddr: {} vpage: {} fault: {}\n", __func__, ppage_iter->second, champsim::page_number{vpage}, fault);
   }
 
-  return std::pair{ppage->second, penalty};
+  return std::pair{ppage_iter->second, penalty};
+}
+
+std::pair<champsim::page_number, champsim::chrono::clock::duration> VirtualMemory::va_to_pa_without_allocation(uint32_t cpu_num, champsim::page_number vpage)
+{
+  bool is_allocated = true;
+  auto ppage_iter = vpage_to_ppage_map.find({cpu_num, champsim::page_number{vpage}});
+  if (ppage_iter == vpage_to_ppage_map.end()) {
+    is_allocated = false;
+    return std::pair{champsim::page_number{}, is_allocated};
+  }
+  return std::pair{ppage_iter->second, is_allocated};
 }
 
 std::pair<champsim::address, champsim::chrono::clock::duration> VirtualMemory::get_pte_pa(uint32_t cpu_num, champsim::page_number vaddr, std::size_t level)
