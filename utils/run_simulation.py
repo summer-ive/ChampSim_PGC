@@ -89,10 +89,6 @@ def main():
                 if done % 10 == 0 or done == jobs_count:
                     print(f"{datetime.now():%H:%M:%S} Progress: {done}/{jobs_count} finished")
 
-    # 並列実行
-    with ThreadPoolExecutor(max_workers=NJOBS) as executor:
-        executor.map(run_trace, trace_files, [log_dir] * len(trace_files))
-
 
 if __name__ == "__main__":
     main()
