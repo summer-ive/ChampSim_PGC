@@ -122,7 +122,7 @@ std::pair<champsim::page_number, champsim::chrono::clock::duration> VirtualMemor
   return std::pair{ppage_iter->second, penalty};
 }
 
-std::pair<champsim::page_number, champsim::chrono::clock::duration> VirtualMemory::va_to_pa_without_allocation(uint32_t cpu_num, champsim::page_number vpage)
+std::pair<champsim::page_number, bool> VirtualMemory::va_to_pa_without_allocation(uint32_t cpu_num, champsim::page_number vpage)
 {
   bool is_allocated = true;
   auto ppage_iter = vpage_to_ppage_map.find({cpu_num, champsim::page_number{vpage}});

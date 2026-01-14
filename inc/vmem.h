@@ -107,6 +107,8 @@ public:
    */
   std::pair<champsim::page_number, champsim::chrono::clock::duration> va_to_pa(uint32_t cpu_num, champsim::page_number vaddr);
 
+  std::pair<champsim::page_number, bool> va_to_pa_without_allocation(uint32_t cpu_num, champsim::page_number vaddr);
+
   /**
    * Find the address for the page table page for the given virtual address (under translation), and the given level.
    * If a page table page does not already exist, one will be created and the minor fault penalty will be applied.
