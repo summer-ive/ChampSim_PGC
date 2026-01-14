@@ -52,7 +52,7 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
   // PGC enabling flag
-  bool is_pgc_enabled = true;
+  constexpr static bool is_pgc_enabled = true;
 
   // Statistics variants for PGC simulation
   bool roi_stats_initialized = false;
