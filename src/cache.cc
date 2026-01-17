@@ -642,8 +642,8 @@ void CACHE::finish_translation(const response_type& packet)
   auto mark_translated = [p_page = champsim::page_number{packet.data}, metadata = packet.pf_metadata, this](auto& entry) {
     [[maybe_unused]] auto old_address = entry.address;
     entry.address = champsim::address{champsim::splice(p_page, champsim::page_offset{entry.v_address})}; // translated address
-    entry.pf_metadata = metadata; // pass the metadata to convey information about whether ptw was triggered
-    entry.is_translated = true;   // This entry is now translated
+    entry.pf_metadata |= metadata; // pass the metadata to convey information about whether ptw was triggered
+    entry.is_translated = true;    // This entry is now translated
 
     if constexpr (champsim::debug_print) {
       fmt::print("[{}_TRANSLATE] finish_translation old: {} paddr: {} vaddr: {} type: {} cycle: {}\n", this->NAME, old_address, entry.address, entry.v_address,
