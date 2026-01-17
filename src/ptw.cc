@@ -216,6 +216,9 @@ void PageTableWalker::finish_packet(const response_type& packet)
 
   std::for_each(std::begin(MSHR), last_finished, [is_last_step, finish_step, finish_last_step](auto& mshr_entry) {
     mshr_entry.data = is_last_step(mshr_entry) ? finish_last_step(mshr_entry) : finish_step(mshr_entry);
+    if (is_last_step(mshr_entry)) {
+      mshr_entry.pf_metadata = (mshr_entry.pf_metadata | 0x80000000); // set the flag indicating translation is complete
+    }
   });
 
   std::partition_copy(std::begin(MSHR), last_finished, std::back_inserter(completed), std::back_inserter(finished), is_last_step);
@@ -235,8 +238,7 @@ void PageTableWalker::begin_phase()
 // LCOV_EXCL_START Exclude the following function from LCOV
 void PageTableWalker::print_deadlock()
 {
-  champsim::range_print_deadlock(MSHR, NAME + "_MSHR", "address: {} v_address: {} translation_level: {}", [](const auto& entry) {
-    return std::tuple{entry.address, entry.v_address, entry.translation_level};
-  });
+  champsim::range_print_deadlock(MSHR, NAME + "_MSHR", "address: {} v_address: {} translation_level: {}",
+                                 [](const auto& entry) { return std::tuple{entry.address, entry.v_address, entry.translation_level}; });
 }
 // LCOV_EXCL_STOP
