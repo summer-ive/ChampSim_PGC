@@ -68,7 +68,10 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
     auto index() const { return 0ULL; }
     auto tag() const { return pte_block_vpage_tag; }
   };
-  champsim::msl::lru_table<pte_buffer_entry> pte_buffer{PTE_BUFFER_SET, PTE_BUFFER_WAY};
+  struct pte_buffer_type : champsim::msl::lru_table<pte_buffer_entry> {
+    pte_buffer_type() : champsim::msl::lru_table<pte_buffer_entry>(PTE_BUFFER_SET, PTE_BUFFER_WAY) {}
+  };
+  std::array<pte_buffer_type, NUM_CPUS> pte_buffer;
 
   // Statistics variants for PGC simulation
   bool roi_stats_initialized = false;
