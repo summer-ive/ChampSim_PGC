@@ -72,6 +72,7 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
     pte_buffer_type() : champsim::msl::lru_table<pte_buffer_entry>(PTE_BUFFER_SET, PTE_BUFFER_WAY) {}
   };
   std::array<pte_buffer_type, NUM_CPUS> pte_buffer;
+  std::pair<champsim::page_number, bool> va_to_pa_buffer(uint32_t cpu_num, champsim::page_number vpage);
 
   // Statistics variants for PGC simulation
   bool roi_stats_initialized = false;
