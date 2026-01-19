@@ -47,9 +47,12 @@ const std::size_t NUM_CPUS = configured_environment::num_cpus;
 
 const unsigned BLOCK_SIZE = configured_environment::block_size;
 const unsigned PAGE_SIZE = configured_environment::page_size;
+const unsigned PTE_SIZE = 8; // size of a PTE in bytes
+const unsigned PTE_BLOCK_PAGE_SIZE = PAGE_SIZE * BLOCK_SIZE / PTE_SIZE;
 #endif
 const unsigned LOG2_BLOCK_SIZE = champsim::lg2(BLOCK_SIZE);
 const unsigned LOG2_PAGE_SIZE = champsim::lg2(PAGE_SIZE);
+const unsigned LOG2_PTE_BLOCK_PAGE_SIZE = champsim::lg2(PTE_BLOCK_PAGE_SIZE);
 
 #ifndef CHAMPSIM_TEST_BUILD
 

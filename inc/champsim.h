@@ -29,8 +29,10 @@
 extern const std::size_t NUM_CPUS;
 extern const unsigned BLOCK_SIZE;
 extern const unsigned PAGE_SIZE;
+extern const unsigned PTE_BLOCK_PAGE_SIZE;
 extern const unsigned LOG2_BLOCK_SIZE;
 extern const unsigned LOG2_PAGE_SIZE;
+extern const unsigned LOG2_PTE_BLOCK_PAGE_SIZE;
 
 namespace champsim
 {
@@ -73,6 +75,8 @@ using block_number = address_slice<block_number_extent>;
 using block_offset = address_slice<block_offset_extent>;
 using page_number = address_slice<page_number_extent>;
 using page_offset = address_slice<page_offset_extent>;
+using pte_block_page_number = address_slice<pte_block_page_number_extent>;
+using pte_block_page_offset = address_slice<pte_block_page_offset_extent>;
 
 /**
  * Get the lowest possible address for which the space between it and zero is the given size.

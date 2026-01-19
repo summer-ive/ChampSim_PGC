@@ -11,6 +11,14 @@ champsim::block_number_extent::block_number_extent() : dynamic_extent(champsim::
 
 champsim::block_offset_extent::block_offset_extent() : dynamic_extent(champsim::data::bits{LOG2_BLOCK_SIZE}, champsim::data::bits{}) {}
 
+champsim::pte_block_page_number_extent::pte_block_page_number_extent() : dynamic_extent(champsim::address::bits, champsim::data::bits{LOG2_PTE_BLOCK_PAGE_SIZE})
+{
+}
+
+champsim::pte_block_page_offset_extent::pte_block_page_offset_extent() : dynamic_extent(champsim::data::bits{LOG2_PTE_BLOCK_PAGE_SIZE}, champsim::data::bits{})
+{
+}
+
 namespace
 {
 template <typename T>

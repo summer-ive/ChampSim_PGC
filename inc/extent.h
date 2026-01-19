@@ -98,6 +98,22 @@ struct block_offset_extent : dynamic_extent {
   block_offset_extent();
 };
 
+struct pte_block_page_number_extent : dynamic_extent {
+  /**
+   * This extent can only be default-initialized.
+   * It will have ``upper == champsim::address::bits`` and ``lower == LOG2_PTE_BLOCK_PAGE_SIZE``.
+   */
+  pte_block_page_number_extent();
+};
+
+struct pte_block_page_offset_extent : dynamic_extent {
+  /**
+   * This extent can only be default-initialized.
+   * It will have ``upper == LOG2_PTE_BLOCK_PAGE_SIZE`` and ``lower == 0``.
+   */
+  pte_block_page_offset_extent();
+};
+
 /**
  * An extent with compile-time size
  */
