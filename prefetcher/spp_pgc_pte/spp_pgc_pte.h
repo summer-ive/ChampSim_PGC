@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "cache.h"
+#include "chrono.h"
 #include "modules.h"
 #include "msl/lru_table.h"
 #include "vmem.h"
@@ -53,6 +54,21 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
 
   // PGC enabling flag
   constexpr static bool is_pgc_enabled = true;
+  constexpr static bool can_get_pte_when_tlb_hit = false;
+
+  // map to keep the translation data by cached ptes
+  constexpr static std::size_t PTE_BUFFER_SET = 1; // PTE buffer is fully associative
+  constexpr static std::size_t PTE_BUFFER_WAY = 16;
+  struct pte_buffer_entry {
+    champsim::pte_block_page_number pte_block_vpage_tag{0};
+    std::array<champsim::pte_block_page_number, 8> pte_block_ppage_array;
+    uint8_t valid_mask = 0;
+    bool is_valid = false;
+
+    auto index() const { return 0ULL; }
+    auto tag() const { return pte_block_vpage_tag; }
+  };
+  champsim::msl::lru_table<pte_buffer_entry> pte_buffer{PTE_BUFFER_SET, PTE_BUFFER_WAY};
 
   // Statistics variants for PGC simulation
   bool roi_stats_initialized = false;
