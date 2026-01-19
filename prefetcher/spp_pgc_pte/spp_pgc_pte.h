@@ -58,21 +58,19 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
 
   // map to keep the translation data by cached ptes
   constexpr static std::size_t PTE_BUFFER_SET = 1; // PTE buffer is fully associative
-  constexpr static std::size_t PTE_BUFFER_WAY = 16;
+  constexpr static std::size_t PTE_BUFFER_WAY = 128;
   struct pte_buffer_entry {
-    champsim::pte_block_page_number pte_block_vpage_tag{0};
-    std::array<champsim::page_number, BLOCK_SIZE / PTE_SIZE> pte_block_ppage_array;
-    uint8_t valid_mask = 0;
+    champsim::page_number ppage{0};
     bool is_valid = false;
 
     auto index() const { return 0ULL; }
-    auto tag() const { return pte_block_vpage_tag; }
+    auto tag() const { return ppage; }
   };
   struct pte_buffer_type : champsim::msl::lru_table<pte_buffer_entry> {
     pte_buffer_type() : champsim::msl::lru_table<pte_buffer_entry>(PTE_BUFFER_SET, PTE_BUFFER_WAY) {}
   };
   std::array<pte_buffer_type, NUM_CPUS> pte_buffer;
-  std::pair<champsim::page_number, bool> va_to_pa_buffer(uint32_t cpu_num, champsim::page_number vpage);
+  std::pair<champsim::page_number, bool> pa_to_va_buffer(uint32_t cpu_num, champsim::page_number ppage);
 
   // Statistics variants for PGC simulation
   bool roi_stats_initialized = false;
