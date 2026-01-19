@@ -61,7 +61,7 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
   constexpr static std::size_t PTE_BUFFER_WAY = 16;
   struct pte_buffer_entry {
     champsim::pte_block_page_number pte_block_vpage_tag{0};
-    std::array<champsim::pte_block_page_number, 8> pte_block_ppage_array;
+    std::array<champsim::page_number, BLOCK_SIZE / PTE_SIZE> pte_block_ppage_array;
     uint8_t valid_mask = 0;
     bool is_valid = false;
 
