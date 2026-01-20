@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include "prefetcher_helper.h"
+#include "util/to_underlying.h"
 
 void spp_pgc_pte::prefetcher_initialize()
 {
@@ -44,10 +45,30 @@ void spp_pgc_pte::reset_roi_status()
   return;
 }
 
+void spp_pgc_pte::cache_translation(uint32_t trigger_cpu, champsim::page_number vpage)
+{
+  uint64_t pte_in_block = BLOCK_SIZE / PTE_SIZE;            // ordinarily, 8 PTEs in a block
+  uint64_t log2_pte_in_block = champsim::lg2(pte_in_block); // ordinarily, 3
+  auto& target_pte_buffer = pte_buffer[trigger_cpu];
+  auto base_vpage = champsim::page_number{(champsim::to_underlying(vpage) >> (LOG2_PAGE_SIZE + log2_pte_in_block)) << (LOG2_PAGE_SIZE + log2_pte_in_block)};
+
+  for (uint64_t i = 0; i < pte_in_block; i++) {
+    champsim::page_number cur_ppage;
+    auto cur_vpage = base_vpage + i;
+    bool is_allocated;
+    std::tie(cur_ppage, is_allocated) = va_to_pa_ideal(trigger_cpu, cur_vpage);
+    if (!is_allocated)
+      continue;
+
+    pte_buffer_entry new_entry = {cur_ppage, cur_vpage, true};
+    target_pte_buffer.fill(new_entry);
+  }
+};
+
 std::pair<champsim::page_number, bool> spp_pgc_pte::pa_to_va_buffer(uint32_t trigger_cpu, champsim::page_number ppage)
 {
   auto& target_pte_buffer = pte_buffer[trigger_cpu];
-  pte_buffer_entry query_entry = {ppage, false};
+  pte_buffer_entry query_entry = {ppage, champsim::page_number{0}, false};
   if (auto hit = target_pte_buffer.check_hit(query_entry) && hit->is_valid) {
     return {hit->ppage, true};
   }
@@ -118,6 +139,11 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
 
   typename spp_pgc_pte::offset_type::difference_type delta = 0;
   std::vector<typename spp_pgc_pte::offset_type::difference_type> delta_q(intern_->MSHR_SIZE);
+
+  // cache translation when PTW was triggered before this access
+  uint32_t ptw_flag_mask = 0x80000000;
+  if ((metadata_in & ptw_flag_mask) == ptw_flag_mask)
+    cache_translation(trigger_cpu, trigger_vpage);
 
   for (uint32_t i = 0; i < intern_->MSHR_SIZE; i++) {
     confidence_q[i] = 0;

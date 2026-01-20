@@ -71,6 +71,7 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
     pte_buffer_type() : champsim::msl::lru_table<pte_buffer_entry>(PTE_BUFFER_SET, PTE_BUFFER_WAY) {}
   };
   std::array<pte_buffer_type, NUM_CPUS> pte_buffer;
+  void cache_translation(uint32_t cpu_num, champsim::page_number vpage);
   std::pair<champsim::page_number, bool> pa_to_va_buffer(uint32_t cpu_num, champsim::page_number ppage);
 
   // Statistics variants for PGC simulation
