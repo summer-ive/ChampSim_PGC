@@ -60,10 +60,11 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
   constexpr static std::size_t PTE_BUFFER_SET = 1; // PTE buffer is fully associative
   constexpr static std::size_t PTE_BUFFER_WAY = 128;
   struct pte_buffer_entry {
-    champsim::page_number ppage{0};
+    champsim::page_number ppage{0}; // key
+    champsim::page_number vpage{0}; // value
     bool is_valid = false;
 
-    auto index() const { return 0ULL; }
+    auto index() const { return champsim::page_number{0}; }
     auto tag() const { return ppage; }
   };
   struct pte_buffer_type : champsim::msl::lru_table<pte_buffer_entry> {
