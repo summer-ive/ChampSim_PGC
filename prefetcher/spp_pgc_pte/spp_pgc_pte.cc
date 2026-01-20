@@ -44,16 +44,32 @@ void spp_pgc_pte::reset_roi_status()
   return;
 }
 
-bool spp_pgc_pte::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
+std::pair<champsim::page_number, bool> spp_pgc_pte::pa_to_va_buffer(uint32_t trigger_cpu, champsim::page_number ppage)
 {
-  bool is_allocated;
-  champsim::page_number trigger_ppage;
-  std::tie(trigger_ppage, is_allocated) = va_to_pa_ideal(trigger_cpu, trigger_vpage);
-  if (!is_allocated) // trigger_vpage is not mapped to any physical page
-    return false;
+  auto& target_pte_buffer = pte_buffer[trigger_cpu];
+  pte_buffer_entry query_entry = {ppage, false};
+  if (auto hit = target_pte_buffer.check_hit(query_entry) && hit->is_valid) {
+    return {hit->ppage, true};
+  }
+  return {champsim::page_number{0}, false};
+};
 
+// TODO: change name adequately
+bool spp_pgc_pte::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_ppage, champsim::page_number pf_ppage)
+{
   if (pf_ppage == trigger_ppage) // same page
     return true;
+
+  bool is_cached;
+  champsim::page_number trigger_vpage;
+  champsim::page_number pf_vpage;
+  std::tie(trigger_vpage, is_cached) = pa_to_va_buffer(trigger_cpu, trigger_ppage);
+  if (!is_cached) // trigger_ppage is not cached in pte_buffer
+    return false;
+  std::tie(pf_vpage, is_cached) = pa_to_va_buffer(trigger_cpu, pf_ppage);
+  if (!is_cached) // pf_vpage is not cached in pte_buffer
+    return false;
+
   const long long step = (pf_ppage > trigger_ppage) ? 1 : -1;
   long long delta = 0;
   while (pf_ppage - delta != trigger_ppage) {
@@ -64,13 +80,13 @@ bool spp_pgc_pte::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_nu
   champsim::page_number cur_ppage = trigger_ppage;
 
   while (delta != 0) {
-    champsim::page_number adj_vpage = cur_vpage + step;
-    champsim::page_number adj_ppage;
-    std::tie(adj_ppage, is_allocated) = va_to_pa_ideal(trigger_cpu, adj_vpage);
-    if (!is_allocated) // adj_vpage is not mapped to any physical page
+    champsim::page_number adj_ppage = cur_ppage + step;
+    champsim::page_number adj_vpage;
+    std::tie(adj_vpage, is_cached) = pa_to_va_buffer(trigger_cpu, adj_ppage);
+    if (!is_cached)
       return false;
 
-    if (adj_ppage != (cur_ppage + step))
+    if (adj_vpage != (cur_vpage + step))
       return false;
 
     cur_vpage = adj_vpage;
@@ -78,7 +94,7 @@ bool spp_pgc_pte::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_nu
     delta -= step;
   }
 
-  if (cur_ppage == pf_ppage) {
+  if (cur_vpage == pf_vpage) {
     return true;
   }
 
