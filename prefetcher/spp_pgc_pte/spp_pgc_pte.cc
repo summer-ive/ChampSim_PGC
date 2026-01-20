@@ -167,7 +167,9 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
   ST.read_and_update_sig(trigger_paddr, last_sig, curr_sig, delta);
 
   // Also check the prefetch filter in parallel to update global accuracy counters
-  FILTER.check(trigger_paddr, spp_pgc_pte::L2C_DEMAND);
+  if (useful_prefetch) {
+    FILTER.check(trigger_paddr, spp_pgc_pte::L2C_DEMAND);
+  }
 
   // Stage 2: Update delta patterns stored in PT
   if (last_sig)
@@ -230,7 +232,8 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
           // ChampSimではハッシュ関数を用いてプリフェッチフィルタのスロット割当を行う。
           // ハッシュ値のうち、下位からREMAINDER_BIT分はタグに、そこから上位のQUOTIENT_BIT分をインデクシングに使用。
           uint64_t hash = get_hash(cache_line.to<uint64_t>());
-          uint32_t q = (hash >> REMAINDER_BIT) & ((1 << QUOTIENT_BIT) - 1);
+          uint32_t quotient = (hash >> REMAINDER_BIT) & ((1 << QUOTIENT_BIT) - 1);
+          uint32_t remainder = hash % (1 << REMAINDER_BIT);
 
           if (is_prefetch_in_this_level) {
             count_map["prefetch_request_l2c"]++;
@@ -242,18 +245,22 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
             }
             if (is_prefetch_succeed) {
               count_map["prefetch_issued_l2c"]++;
+
+              FILTER.valid[quotient] = 1;  // Mark as prefetched
+              FILTER.useful[quotient] = 0; // Reset useful bit
+              FILTER.remainder_tag[quotient] = remainder;
+              FILTER.is_pgc[quotient] = 0;
+              FILTER.is_narrowly_defined_pgc[quotient] = 0;
+
               if (is_pgc_candidate) {
                 count_map["pgc_issued_l2c"]++;
                 pgc_distance_map_l2c[page_distance]++;
-                FILTER.is_pgc[q] = 1;
+                FILTER.is_pgc[quotient] = 1;
                 if (is_narrowly_defined_pgc_candidate) {
                   count_map["narrowly_defined_pgc_issued_l2c"]++;
                   narrowly_defined_pgc_distance_map_l2c[page_distance]++;
-                  FILTER.is_narrowly_defined_pgc[q] = 1;
+                  FILTER.is_narrowly_defined_pgc[quotient] = 1;
                 }
-              } else {
-                FILTER.is_pgc[q] = 0;
-                FILTER.is_narrowly_defined_pgc[q] = 0;
               }
             }
           } else {
@@ -719,9 +726,6 @@ bool spp_pgc_pte::PREFETCH_FILTER::check(champsim::address check_addr, FILTER_RE
 
       return false; // False return indicates "Do not prefetch"
     } else {
-      valid[quotient] = 1;  // Mark as prefetched
-      useful[quotient] = 0; // Reset useful bit
-      remainder_tag[quotient] = remainder;
 
       if constexpr (SPP_DEBUG_PRINT) {
         std::cout << "[FILTER] " << __func__ << " set valid for check_addr: " << check_addr << " cache_line: " << cache_line;
