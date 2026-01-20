@@ -51,7 +51,7 @@ void spp_pgc_pte::cache_translation(uint32_t trigger_cpu, champsim::page_number 
   uint64_t pte_in_block = BLOCK_SIZE / PTE_SIZE;            // ordinarily, 8 PTEs in a block
   uint64_t log2_pte_in_block = champsim::lg2(pte_in_block); // ordinarily, 3
   auto& target_pte_buffer = pte_buffer[trigger_cpu];
-  auto base_vpage = champsim::page_number{(vpage.to<uint64_t>() >> (LOG2_PAGE_SIZE + log2_pte_in_block)) << (LOG2_PAGE_SIZE + log2_pte_in_block)};
+  auto base_vpage = champsim::page_number{(vpage.to<uint64_t>() >> log2_pte_in_block) << log2_pte_in_block};
 
   for (uint64_t i = 0; i < pte_in_block; i++) {
     champsim::page_number cur_ppage;
