@@ -155,29 +155,28 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
           count_map["prefetch_candidate_llc"]++;
         }
 
+        // case when PGC is disabled
+        if (!IS_PGC_ENABLED && is_pgc_candidate) {
+          if constexpr (GHR_ON) {
+            // Store this prefetch request in GHR to bootstrap SPP learning when
+            // we see a ST miss (i.e., accessing a new page)
+            GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
+          }
+          continue;
+        }
+
+        // pgc page continuity check
+        if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
+          if (is_prefetch_in_this_level) {
+            count_map["trashed_va_discontinuous_pgc_l2c"]++;
+          } else {
+            count_map["trashed_va_discontinuous_pgc_llc"]++;
+          }
+          continue;
+        }
+
         // prefetch filter check
         if (FILTER.check(pf_paddr, (is_prefetch_in_this_level ? spp_pgc_ideal::SPP_L2C_PREFETCH : spp_pgc_ideal::SPP_LLC_PREFETCH))) {
-
-          // case when PGC is disabled
-          if (!IS_PGC_ENABLED && is_pgc_candidate) {
-            if constexpr (GHR_ON) {
-              // Store this prefetch request in GHR to bootstrap SPP learning when
-              // we see a ST miss (i.e., accessing a new page)
-              GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
-            }
-            continue;
-          }
-
-          // pgc page continuity check
-          if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
-            if (is_prefetch_in_this_level) {
-              count_map["trashed_va_discontinuous_pgc_l2c"]++;
-            } else {
-              count_map["trashed_va_discontinuous_pgc_llc"]++;
-            }
-            continue;
-          }
-
           bool is_prefetch_succeed = prefetch_line(pf_paddr, is_prefetch_in_this_level, 0); // Use addr (not base_addr) to obey the same physical page boundary
 
           auto cache_line = champsim::block_number{pf_paddr};
