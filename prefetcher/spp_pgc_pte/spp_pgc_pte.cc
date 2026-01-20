@@ -70,13 +70,10 @@ std::pair<champsim::page_number, bool> spp_pgc_pte::pa_to_va_buffer(uint32_t tri
 {
   auto& target_pte_buffer = pte_buffer[trigger_cpu];
   pte_buffer_entry query_entry = {ppage, champsim::page_number{0}, false};
-  if (auto hit = target_pte_buffer.check_hit(query_entry)) {
-    auto hit_entry = hit.value();
-    if (hit_entry.is_valid) {
-      return std::pair<champsim::page_number, bool>{hit_entry.vpage, true};
-    }
+  auto hit = target_pte_buffer.check_hit(query_entry);
+  if (hit && hit->is_valid) {
+    return std::pair<champsim::page_number, bool>{hit->vpage, true};
   }
-
   return std::pair<champsim::page_number, bool>{champsim::page_number{0}, false};
 };
 
