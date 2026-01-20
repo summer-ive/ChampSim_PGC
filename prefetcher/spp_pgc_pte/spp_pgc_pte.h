@@ -56,6 +56,7 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
   // PGC enabling flag
   constexpr static bool IS_PGC_ENABLED = true;
   constexpr static bool IS_FORCE_PTE_CACHING = false;
+  constexpr static bool IS_TEST = false;
 
   // map to keep the translation data by cached ptes
   constexpr static std::size_t PTE_BUFFER_SET = 1; // PTE buffer is fully associative
