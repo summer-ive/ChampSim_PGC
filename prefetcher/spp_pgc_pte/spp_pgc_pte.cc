@@ -9,7 +9,7 @@
 void spp_pgc_pte::prefetcher_initialize()
 {
   std::cout << "Prefetcher: spp_pgc_pte" << std::endl;
-  std::cout << "PGC enabled: " << (is_pgc_enabled ? "true" : "false") << std::endl;
+  std::cout << "PGC enabled: " << (IS_PGC_ENABLED ? "true" : "false") << std::endl;
   std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
   std::cout << "Initialize SIGNATURE TABLE" << std::endl;
   std::cout << "ST_SET: " << ST_SET << std::endl;
@@ -142,7 +142,7 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
 
   // cache translation when PTW was triggered before this access
   uint32_t ptw_flag_mask = 0x80000000;
-  if ((metadata_in & ptw_flag_mask) == ptw_flag_mask)
+  if (IS_FORCE_PTE_CACHING || (metadata_in & ptw_flag_mask) == ptw_flag_mask)
     cache_translation(trigger_cpu, trigger_vpage);
 
   for (uint32_t i = 0; i < intern_->MSHR_SIZE; i++) {
@@ -201,7 +201,7 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
         if (FILTER.check(pf_paddr, (is_prefetch_in_this_level ? spp_pgc_pte::SPP_L2C_PREFETCH : spp_pgc_pte::SPP_LLC_PREFETCH))) {
 
           // case when PGC is disabled
-          if (!is_pgc_enabled && is_pgc_candidate) {
+          if (!IS_PGC_ENABLED && is_pgc_candidate) {
             if constexpr (GHR_ON) {
               // Store this prefetch request in GHR to bootstrap SPP learning when
               // we see a ST miss (i.e., accessing a new page)
@@ -300,7 +300,7 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
         do_lookahead = 1;
       } else {
         count_map["trashed_prefetch_low_confidence"]++;
-        if (is_pgc_enabled && (pf_ppage != trigger_ppage)) {
+        if (IS_PGC_ENABLED && (pf_ppage != trigger_ppage)) {
           count_map["trashed_pgc_low_confidence"]++;
         }
       }

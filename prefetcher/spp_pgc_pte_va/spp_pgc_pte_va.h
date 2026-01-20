@@ -53,7 +53,7 @@ struct spp_pgc_pte_va : public champsim::modules::prefetcher {
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
   // PGC enabling flag
-  constexpr static bool is_pgc_enabled = true;
+  constexpr static bool IS_PGC_ENABLED = true;
   constexpr static bool can_get_pte_when_tlb_hit = false;
 
   // map to keep the translation data by cached ptes
