@@ -29,6 +29,7 @@
 extern const std::size_t NUM_CPUS;
 extern const unsigned BLOCK_SIZE;
 extern const unsigned PAGE_SIZE;
+extern const unsigned PTE_SIZE;
 extern const unsigned PTE_BLOCK_PAGE_SIZE;
 extern const unsigned LOG2_BLOCK_SIZE;
 extern const unsigned LOG2_PAGE_SIZE;
