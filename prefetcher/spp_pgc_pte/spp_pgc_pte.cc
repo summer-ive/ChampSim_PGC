@@ -77,8 +77,7 @@ std::pair<champsim::page_number, bool> spp_pgc_pte::pa_to_va_buffer(uint32_t tri
   return std::pair<champsim::page_number, bool>{champsim::page_number{0}, false};
 };
 
-// TODO: change name adequately
-bool spp_pgc_pte::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_ppage, champsim::page_number pf_ppage)
+bool spp_pgc_pte::is_continuous_in_virtual_with_buffer(uint32_t trigger_cpu, champsim::page_number trigger_ppage, champsim::page_number pf_ppage)
 {
   if (pf_ppage == trigger_ppage) // same page
     return true;
@@ -209,7 +208,7 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
         }
 
         // pgc page continuity check
-        if (!is_adjacent_in_virtual(trigger_cpu, trigger_ppage, pf_ppage)) {
+        if (!is_continuous_in_virtual_with_buffer(trigger_cpu, trigger_ppage, pf_ppage)) {
           if (is_prefetch_in_this_level) {
             count_map["trashed_va_discontinuous_pgc_l2c"]++;
           } else {

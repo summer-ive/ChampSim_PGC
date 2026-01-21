@@ -44,7 +44,7 @@ void spp_pgc_ideal::reset_roi_status()
   return;
 }
 
-bool spp_pgc_ideal::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
+bool spp_pgc_ideal::is_continuous_in_virtual_ideal(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
 {
   bool is_allocated;
   champsim::page_number trigger_ppage;
@@ -166,7 +166,7 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
         }
 
         // pgc page continuity check
-        if (!is_adjacent_in_virtual(trigger_cpu, trigger_vpage, pf_ppage)) {
+        if (!is_continuous_in_virtual_ideal(trigger_cpu, trigger_vpage, pf_ppage)) {
           if (is_prefetch_in_this_level) {
             count_map["trashed_va_discontinuous_pgc_l2c"]++;
           } else {

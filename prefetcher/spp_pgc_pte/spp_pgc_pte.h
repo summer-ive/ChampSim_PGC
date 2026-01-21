@@ -81,28 +81,29 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
   void reset_roi_status();
   std::unordered_map<std::string, uint64_t> count_map = {
       // prefetch_candidate_total = prefetch_candidate_l2c + prefetch_candidate_llc + trashed_prefetch_low_confidence
-      {"prefetch_candidate_total", 0},        // total prefetch candidates read from Pattern Table
-      {"prefetch_candidate_l2c", 0},          // prefetch candidates for L2C with higher confidence than l2c fill threshold
-      {"prefetch_candidate_llc", 0},          // prefetch candidates for LLC with lower confidence than l2c fill threshold
-      {"trashed_prefetch_low_confidence", 0}, // not requested prefetch candidates with lower confidence than llc fill threshold
-      {"trashed_pgc_low_confidence", 0},      // not requested pgc candidates with lower confidence than llc fill threshold
-      // trashed pgcs below are narrowly defined pgc
-      {"trashed_va_discontinuous_pgc_l2c", 0}, // trashed l2c pgc request due to discontinuity on the virtual memory address
-      {"trashed_va_discontinuous_pgc_llc", 0}, // trashed llc pgc request due to discontinuity on the virtual memory address
+      {"prefetch_candidate_total", 0},                          // total prefetch candidates read from Pattern Table
+      {"prefetch_candidate_l2c", 0},                            // prefetch candidates for L2C with higher confidence than l2c fill threshold
+      {"prefetch_candidate_llc", 0},                            // prefetch candidates for LLC with lower confidence than l2c fill threshold
+      {"trashed_prefetch_low_confidence", 0},                   // not requested prefetch candidates with lower confidence than llc fill threshold
+      {"trashed_pgc_low_confidence", 0},                        // not requested pgc candidates with lower confidence than llc fill threshold
+      {"trashed_va_discontinuous_narrowly_defined_pgc_l2c", 0}, // trashed l2c pgc request due to discontinuity on the virtual memory address
+      {"trashed_va_discontinuous_narrowly_defined_pgc_llc", 0}, // trashed llc pgc request due to discontinuity on the virtual memory address
+      {"trashed_lacking_translation_pgc_l2c", 0},               // trashed l2c pgc request due to the lack of translation information
+      {"trashed_lacking_translation_pgc_llc", 0},               // trashed llc pgc request due to the lack of translation information
       // prefetch request
-      {"prefetch_request_l2c", 0},
-      {"prefetch_request_llc", 0},
-      {"pgc_request_l2c", 0},
-      {"pgc_request_llc", 0},
-      {"narrowly_defined_pgc_request_l2c", 0},
-      {"narrowly_defined_pgc_request_llc", 0},
+      {"prefetch_request_l2c", 0},             // prefetch requests sent to L2C
+      {"prefetch_request_llc", 0},             // prefetch requests sent to LLC
+      {"pgc_request_l2c", 0},                  // pgc requests sent to L2C
+      {"pgc_request_llc", 0},                  // pgc requests sent to LLC
+      {"narrowly_defined_pgc_request_l2c", 0}, // narrowly defined pgc requests sent to L2C
+      {"narrowly_defined_pgc_request_llc", 0}, // narrowly defined pgc requests sent to LLC
       // prefetch issued
-      {"prefetch_issued_l2c", 0},
-      {"prefetch_issued_llc", 0},
-      {"pgc_issued_l2c", 0},
-      {"pgc_issued_llc", 0},
-      {"narrowly_defined_pgc_issued_l2c", 0},
-      {"narrowly_defined_pgc_issued_llc", 0},
+      {"prefetch_issued_l2c", 0},             // prefetches issued to L2C
+      {"prefetch_issued_llc", 0},             // prefetches issued to LLC
+      {"pgc_issued_l2c", 0},                  // pgcs issued to L2C
+      {"pgc_issued_llc", 0},                  // pgcs issued to LLC
+      {"narrowly_defined_pgc_issued_l2c", 0}, // narrowly defined pgcs issued to L2C
+      {"narrowly_defined_pgc_issued_llc", 0}, // narrowly defined pgcs issued to LLC
       // prefetch useful
       // TODO: llc useful metrics are not implemented
       {"useful_prefetch_l2c", 0},
@@ -116,7 +117,7 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
   std::unordered_map<int, uint64_t> pgc_distance_map_llc;
   std::unordered_map<int, uint64_t> narrowly_defined_pgc_distance_map_l2c;
   std::unordered_map<int, uint64_t> narrowly_defined_pgc_distance_map_llc;
-  bool is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage);
+  bool is_continuous_in_virtual_with_buffer(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage);
 
   using prefetcher::prefetcher;
   uint32_t prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,
