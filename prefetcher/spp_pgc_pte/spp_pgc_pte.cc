@@ -250,9 +250,16 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
         // pgc page continuity check
         if (!is_continuous_in_virtual_with_buffer(trigger_cpu, trigger_ppage, pf_ppage)) {
           if (is_prefetch_in_this_level) {
-            count_map["trashed_va_discontinuous_pgc_l2c"]++;
+            count_map["trashed_lacking_translation_pgc_l2c"]++;
           } else {
-            count_map["trashed_va_discontinuous_pgc_llc"]++;
+            count_map["trashed_lacking_translation_pgc_llc"]++;
+          }
+          if (!is_continuous_in_virtual_ideal(trigger_cpu, trigger_vpage, pf_ppage)) {
+            if (is_prefetch_in_this_level) {
+              count_map["trashed_va_discontinuous_pgc_l2c"]++;
+            } else {
+              count_map["trashed_va_discontinuous_pgc_llc"]++;
+            }
           }
           continue;
         }
