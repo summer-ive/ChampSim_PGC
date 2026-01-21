@@ -306,9 +306,9 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
                         << " Prefetch PPA: " << pf_ppage << std::endl;
             }
             if (is_prefetch_in_this_level) {
-              count_map["trashed_va_discontinuous_pgc_l2c"]++;
+              count_map["trashed_va_discontinuous_narrowly_defined_pgc_l2c"]++;
             } else {
-              count_map["trashed_va_discontinuous_pgc_llc"]++;
+              count_map["trashed_va_discontinuous_narrowly_defined_pgc_llc"]++;
             }
           }
           continue;
