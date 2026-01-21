@@ -54,11 +54,9 @@ bool spp_pgc_ideal::is_adjacent_in_virtual(uint32_t trigger_cpu, champsim::page_
 
   if (pf_ppage == trigger_ppage) // same page
     return true;
-  const long long step = (pf_ppage > trigger_ppage) ? 1 : -1;
-  long long delta = 0;
-  while (pf_ppage - delta != trigger_ppage) {
-    delta += step;
-  }
+
+  long long delta = pf_ppage.to<long long>() - trigger_ppage.to<long long>();
+  const long long step = (delta > 0) ? 1 : -1;
 
   champsim::page_number cur_vpage = trigger_vpage;
   champsim::page_number cur_ppage = trigger_ppage;
