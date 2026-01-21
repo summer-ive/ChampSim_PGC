@@ -52,15 +52,25 @@ void spp_pgc_pte::cache_translation(uint32_t trigger_cpu, champsim::page_number 
   uint64_t log2_pte_in_block = champsim::lg2(pte_in_block); // ordinarily, 3
   auto& target_pte_buffer = pte_buffer[trigger_cpu];
   auto base_vpage = champsim::page_number{(vpage.to<uint64_t>() >> log2_pte_in_block) << log2_pte_in_block};
+  if (IS_TEST) {
+    std::cout << "[SPP_TEST] cache_translation is caching PTEs. VPA: " << base_vpage << " to VPA: " << (base_vpage + pte_in_block - 1) << std::endl;
+  }
 
   for (uint64_t i = 0; i < pte_in_block; i++) {
     champsim::page_number cur_ppage;
     auto cur_vpage = base_vpage + i;
     bool is_allocated;
     std::tie(cur_ppage, is_allocated) = va_to_pa_ideal(trigger_cpu, cur_vpage);
-    if (!is_allocated)
+    if (!is_allocated) {
+      if (IS_TEST) {
+        std::cout << "[SPP_TEST] VPA: " << cur_vpage << " is not allocated. Skip caching its PTE." << std::endl;
+      }
       continue;
+    }
 
+    if (IS_TEST) {
+      std::cout << "[SPP_TEST] Caching PTE. VPA: " << cur_vpage << " -> PPA: " << cur_ppage << std::endl;
+    }
     pte_buffer_entry new_entry = {cur_ppage, cur_vpage, true};
     target_pte_buffer.fill(new_entry);
   }
@@ -70,9 +80,21 @@ std::pair<champsim::page_number, bool> spp_pgc_pte::pa_to_va_buffer(uint32_t tri
 {
   auto& target_pte_buffer = pte_buffer[trigger_cpu];
   pte_buffer_entry query_entry = {ppage, champsim::page_number{0}, false};
+
+  if (IS_TEST) {
+    std::cout << "[SPP_TEST] pa_to_va_buffer is querying PTE buffer for PPA: " << ppage << std::endl;
+  }
+
   auto hit = target_pte_buffer.check_hit(query_entry);
   if (hit && hit->is_valid) {
+    if (IS_TEST) {
+      std::cout << "[SPP_TEST] Translation is found in PTE buffer. VPA: " << hit->vpage << " PPA: " << hit->ppage << std::endl;
+    }
     return std::pair<champsim::page_number, bool>{hit->vpage, true};
+  }
+
+  if (IS_TEST) {
+    std::cout << "[SPP_TEST] Translation is NOT found in PTE buffer for PPA: " << ppage << std::endl;
   }
   return std::pair<champsim::page_number, bool>{champsim::page_number{0}, false};
 };
@@ -102,11 +124,20 @@ bool spp_pgc_pte::is_continuous_in_virtual_with_buffer(uint32_t trigger_cpu, cha
     champsim::page_number adj_ppage = cur_ppage + step;
     champsim::page_number adj_vpage;
     std::tie(adj_vpage, is_cached) = pa_to_va_buffer(trigger_cpu, adj_ppage);
-    if (!is_cached)
+    if (!is_cached) {
+      if (IS_TEST) {
+        std::cout << "[SPP_TEST] PPA: " << adj_ppage << " is not cached in PTE buffer. Can't confirm VPA continuity." << std::endl;
+      }
       return false;
+    }
 
-    if (adj_vpage != (cur_vpage + step))
+    if (adj_vpage != (cur_vpage + step)) {
+      if (IS_TEST) {
+        std::cout << "[SPP_TEST] VPA discontinuity detected by PTE buffer. VPA: " << cur_vpage << " PPA: " << cur_ppage << " adjacent VPA: " << adj_vpage
+                  << " adjacent PPA: " << adj_ppage << std::endl;
+      }
       return false;
+    }
 
     cur_vpage = adj_vpage;
     cur_ppage = adj_ppage;
@@ -114,6 +145,10 @@ bool spp_pgc_pte::is_continuous_in_virtual_with_buffer(uint32_t trigger_cpu, cha
   }
 
   if (cur_vpage == pf_vpage) {
+    if (IS_TEST) {
+      std::cout << "[SPP_TEST] VPA continuity is confirmed by PTE buffer. Trigger VPA: " << trigger_vpage << " Trigger PPA: " << trigger_ppage
+                << " Prefetch PPA: " << pf_ppage << std::endl;
+    }
     return true;
   }
 
@@ -180,8 +215,12 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
 
   // cache translation when PTW was triggered before this access
   uint32_t ptw_flag_mask = 0x80000000;
-  if (IS_FORCE_PTE_CACHING || (metadata_in & ptw_flag_mask) == ptw_flag_mask)
+  if (IS_FORCE_PTE_CACHING || (metadata_in & ptw_flag_mask) == ptw_flag_mask) {
+    if (IS_TEST) {
+      // std::cout << "[SPP_TEST] cache_translation is triggered. VA: " << trigger_vaddr << " PA: " << trigger_paddr << std::endl;
+    }
     cache_translation(trigger_cpu, trigger_vpage);
+  }
 
   for (uint32_t i = 0; i < intern_->MSHR_SIZE; i++) {
     confidence_q[i] = 0;
@@ -201,6 +240,9 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
 
   // Also check the prefetch filter in parallel to update global accuracy counters
   if (useful_prefetch) {
+    if (IS_TEST) {
+      // std::cout << "[SPP_TEST] Useful prefetch detected. VA: " << trigger_vaddr << " PA: " << trigger_paddr << std::endl;
+    }
     FILTER.check(trigger_paddr, spp_pgc_pte::L2C_DEMAND);
   }
 
@@ -249,12 +291,20 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
 
         // pgc page continuity check
         if (!is_continuous_in_virtual_with_buffer(trigger_cpu, trigger_ppage, pf_ppage)) {
+          if (IS_TEST) {
+            std::cout << "[SPP_TEST] VPA continuity can't be confirmed by buffer. Trigger VPA: " << trigger_vpage << " Trigger PPA: " << trigger_ppage
+                      << " Prefetch PPA: " << pf_ppage << std::endl;
+          }
           if (is_prefetch_in_this_level) {
             count_map["trashed_lacking_translation_pgc_l2c"]++;
           } else {
             count_map["trashed_lacking_translation_pgc_llc"]++;
           }
           if (!is_continuous_in_virtual_ideal(trigger_cpu, trigger_vpage, pf_ppage)) {
+            if (IS_TEST) {
+              std::cout << "[SPP_TEST] VPA discontinuity is confirmed by ideal translation. Trigger VPA: " << trigger_vpage << " Trigger PPA: " << trigger_ppage
+                        << " Prefetch PPA: " << pf_ppage << std::endl;
+            }
             if (is_prefetch_in_this_level) {
               count_map["trashed_va_discontinuous_pgc_l2c"]++;
             } else {
@@ -402,8 +452,13 @@ void spp_pgc_pte::prefetcher_final_stats()
   std::cout << "[SPP] trashed prefetch candidates with lower confidence than llc fill threshold: " << count_map["trashed_prefetch_low_confidence"] << "\n";
   std::cout << "[SPP] trashed pgc candidates with lower confidence than llc fill threshold: " << count_map["trashed_pgc_low_confidence"] << "\n";
 
-  std::cout << "[SPP] trashed l2c pgc candidates with virtual address discontinuity: " << count_map["trashed_va_discontinuous_pgc_l2c"] << "\n";
-  std::cout << "[SPP] trashed llc pgc candidates with virtual address discontinuity: " << count_map["trashed_va_discontinuous_pgc_llc"] << "\n";
+  std::cout << "[SPP] trashed l2c pgc candidates lacking translation in PTE buffer: " << count_map["trashed_lacking_translation_pgc_l2c"] << "\n";
+  std::cout << "[SPP] trashed llc pgc candidates lacking translation in PTE buffer: " << count_map["trashed_lacking_translation_pgc_llc"] << "\n";
+
+  std::cout << "[SPP] trashed l2c narrowly defined pgc candidates with virtual address discontinuity: "
+            << count_map["trashed_va_discontinuous_narrowly_defined_pgc_l2c"] << "\n";
+  std::cout << "[SPP] trashed llc narrowly defined pgc candidates with virtual address discontinuity: "
+            << count_map["trashed_va_discontinuous_narrowly_defined_pgc_llc"] << "\n";
 
   std::cout << "[SPP] total prefetch request: " << count_map["prefetch_request_l2c"] + count_map["prefetch_request_llc"] << "\n";
   std::cout << "[SPP] l2c prefetch request: " << count_map["prefetch_request_l2c"] << "\n";

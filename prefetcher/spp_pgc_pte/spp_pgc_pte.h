@@ -86,10 +86,10 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
       {"prefetch_candidate_llc", 0},                            // prefetch candidates for LLC with lower confidence than l2c fill threshold
       {"trashed_prefetch_low_confidence", 0},                   // not requested prefetch candidates with lower confidence than llc fill threshold
       {"trashed_pgc_low_confidence", 0},                        // not requested pgc candidates with lower confidence than llc fill threshold
-      {"trashed_va_discontinuous_narrowly_defined_pgc_l2c", 0}, // trashed l2c pgc request due to discontinuity on the virtual memory address
-      {"trashed_va_discontinuous_narrowly_defined_pgc_llc", 0}, // trashed llc pgc request due to discontinuity on the virtual memory address
       {"trashed_lacking_translation_pgc_l2c", 0},               // trashed l2c pgc request due to the lack of translation information
       {"trashed_lacking_translation_pgc_llc", 0},               // trashed llc pgc request due to the lack of translation information
+      {"trashed_va_discontinuous_narrowly_defined_pgc_l2c", 0}, // trashed l2c pgc request due to discontinuity on the virtual memory address
+      {"trashed_va_discontinuous_narrowly_defined_pgc_llc", 0}, // trashed llc pgc request due to discontinuity on the virtual memory address
       // prefetch request
       {"prefetch_request_l2c", 0},             // prefetch requests sent to L2C
       {"prefetch_request_llc", 0},             // prefetch requests sent to LLC
