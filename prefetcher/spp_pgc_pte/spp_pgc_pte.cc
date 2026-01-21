@@ -10,8 +10,11 @@ void spp_pgc_pte::prefetcher_initialize()
 {
   std::cout << "Prefetcher: spp_pgc_pte" << std::endl;
   std::cout << "PGC enabled: " << (IS_PGC_ENABLED ? "true" : "false") << std::endl;
+  std::cout << "GHR ON: " << (GHR_ON ? "true" : "false") << std::endl;
   std::cout << "Force PTE caching: " << (IS_FORCE_PTE_CACHING ? "true" : "false") << std::endl;
   std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
+  std::cout << "[SPP] PTE buffer set size: " << PTE_BUFFER_SET << std::endl;
+  std::cout << "[SPP] PTE buffer way size: " << PTE_BUFFER_WAY << std::endl;
   std::cout << "Initialize SIGNATURE TABLE" << std::endl;
   std::cout << "ST_SET: " << ST_SET << std::endl;
   std::cout << "ST_WAY: " << ST_WAY << std::endl;
