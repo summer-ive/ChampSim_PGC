@@ -121,6 +121,46 @@ bool spp_pgc_pte::is_continuous_in_virtual_with_buffer(uint32_t trigger_cpu, cha
   return false;
 }
 
+bool spp_pgc_pte::is_continuous_in_virtual_ideal(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage)
+{
+  bool is_allocated;
+  champsim::page_number trigger_ppage;
+  std::tie(trigger_ppage, is_allocated) = va_to_pa_ideal(trigger_cpu, trigger_vpage);
+  if (!is_allocated) // trigger_vpage is not mapped to any physical page
+    return false;
+
+  if (pf_ppage == trigger_ppage) // same page
+    return true;
+
+  long long delta = pf_ppage.to<long long>() - trigger_ppage.to<long long>();
+  const long long step = (delta > 0) ? 1 : -1;
+
+  champsim::page_number cur_vpage = trigger_vpage;
+  champsim::page_number cur_ppage = trigger_ppage;
+
+  while (delta != 0) {
+    champsim::page_number adj_vpage = cur_vpage + step;
+    champsim::page_number adj_ppage;
+    std::tie(adj_ppage, is_allocated) = va_to_pa_ideal(trigger_cpu, adj_vpage);
+    if (!is_allocated) // adj_vpage is not mapped to any physical page
+      return false;
+
+    if (adj_ppage != (cur_ppage + step))
+      return false;
+
+    cur_vpage = adj_vpage;
+    cur_ppage = adj_ppage;
+    delta -= step;
+  }
+
+  if (cur_ppage == pf_ppage) {
+    return true;
+  }
+
+  std::cout << "The target physical page address doesn't match the incremented physical page address. There may be a bug." << std::endl;
+  return false;
+}
+
 void spp_pgc_pte::prefetcher_cycle_operate() {}
 
 uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::address trigger_paddr, champsim::address trigger_vaddr, champsim::address ip,

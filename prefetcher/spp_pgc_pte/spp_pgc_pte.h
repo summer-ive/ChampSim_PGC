@@ -117,6 +117,7 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
   std::unordered_map<int, uint64_t> pgc_distance_map_llc;
   std::unordered_map<int, uint64_t> narrowly_defined_pgc_distance_map_l2c;
   std::unordered_map<int, uint64_t> narrowly_defined_pgc_distance_map_llc;
+  bool is_continuous_in_virtual_ideal(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage);
   bool is_continuous_in_virtual_with_buffer(uint32_t trigger_cpu, champsim::page_number trigger_vpage, champsim::page_number pf_ppage);
 
   using prefetcher::prefetcher;
