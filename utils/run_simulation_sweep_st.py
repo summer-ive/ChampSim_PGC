@@ -17,14 +17,14 @@ LOG_BASE_DIR = BASE_DIR / "logs"
 BASE_BIN_PATH = BASE_DIR / "bin"
 CMD_ARGS = ["--warmup-instructions", "200000000", "--simulation-instructions", "500000000"]
 
-VERSIONS = ["256B", "1KB", "4KB", "16KB", "64KB", "256KB", "1MB", "2MB", "4MB", "16MB", "64MB", "256MB"]
+SIGNATURE_REGION_SIZES = ["256B", "1KB", "4KB", "16KB", "64KB", "256KB", "1MB", "2MB", "4MB", "16MB", "64MB", "256MB"]
 
 
 # トレース実行関数
-def run_trace_batch(trace_path: Path, log_dir: Path, version: str, prefetcher_name: str, nice: int = 0):
+def run_trace_batch(trace_path: Path, log_dir: Path, signature_region_size: str, prefetcher_name: str, nice: int = 0):
     basename = trace_path.stem  # .xz除去
     log_path = log_dir / f"{basename}.log"
-    bin_path = str(BASE_BIN_PATH / prefetcher_name / ("champsim_" + version))
+    bin_path = str(BASE_BIN_PATH / prefetcher_name / ("champsim_" + signature_region_size))
     print(f"{datetime.now().strftime('%H:%M:%S')} [ChampSim] Running {basename}")
 
     try:
@@ -58,14 +58,14 @@ def main():
 
     jobs = []
 
-    for version in VERSIONS:
+    for signature_region_size in SIGNATURE_REGION_SIZES:
         # 出力ディレクトリ作成
-        log_dir = LOG_BASE_DIR / str(args.prefetcher_name) / version
+        log_dir = LOG_BASE_DIR / str(args.prefetcher_name) / signature_region_size
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # 一括実行ジョブ作成
         for trace_file in trace_files:
-            jobs.append((version, trace_file, log_dir))
+            jobs.append((signature_region_size, trace_file, log_dir))
 
     jobs_count = len(jobs)
     workers_count = max(1, min(NJOBS, os.cpu_count() or 1, jobs_count))
@@ -79,13 +79,13 @@ def main():
     # 並列実行
     with ThreadPoolExecutor(max_workers=workers_count) as executor:
         futures = []
-        for version, trace_file, log_dir in jobs:
+        for signature_region_size, trace_file, log_dir in jobs:
             futures.append(
                 executor.submit(
                     run_trace_batch,
                     trace_path=trace_file,
                     log_dir=log_dir,
-                    version=version,
+                    signature_region_size=signature_region_size,
                     prefetcher_name=str(args.prefetcher_name),
                     nice=nice
                 )
