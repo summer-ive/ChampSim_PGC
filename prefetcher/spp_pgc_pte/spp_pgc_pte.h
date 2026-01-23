@@ -106,6 +106,7 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
       {"narrowly_defined_pgc_issued_llc", 0}, // narrowly defined pgcs issued to LLC
       // prefetch useful
       // TODO: llc useful metrics are not implemented
+      // It seems that llc mock prefetcher is required to measure the useful prefetches in llc level
       {"useful_prefetch_l2c", 0},
       {"useful_prefetch_llc", 0},
       {"useful_pgc_l2c", 0},
