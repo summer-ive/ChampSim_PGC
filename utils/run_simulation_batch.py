@@ -30,7 +30,7 @@ def run_trace_batch(trace_path: Path, log_dir: Path, version: str, prefetcher_na
     try:
         with open(log_path, "w") as log_file:
             subprocess.run(
-                ["nice", "-n", "6", bin_path, *CMD_ARGS, str(trace_path)],
+                ["nice", "-n", str(nice), bin_path, *CMD_ARGS, str(trace_path)],
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 check=True,
