@@ -172,6 +172,12 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
           } else {
             count_map["trashed_va_discontinuous_pgc_llc"]++;
           }
+
+          if constexpr (GHR_ON) {
+            // Store this prefetch request in GHR to bootstrap SPP learning when
+            // we see a ST miss (i.e., accessing a new page)
+            GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
+          }
           continue;
         }
 
@@ -235,13 +241,6 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
             }
           }
 
-          if (is_pgc_candidate) {
-            if constexpr (GHR_ON) {
-              // Store this prefetch request in GHR to bootstrap SPP learning when
-              // we see a ST miss (i.e., accessing a new page)
-              GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_ideal::offset_type{pf_paddr}, delta_q[i]);
-            }
-          }
           if (is_prefetch_in_this_level) {
             GHR.pf_issued++;
             if (GHR.pf_issued > GLOBAL_COUNTER_MAX) {
