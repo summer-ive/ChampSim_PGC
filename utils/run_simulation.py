@@ -18,8 +18,9 @@ BIN_PATH = BASE_DIR / "bin" / "champsim"
 CMD_ARGS = ["--warmup-instructions", "200000000", "--simulation-instructions", "500000000"]
 
 
+
 # トレース実行関数
-def run_trace(trace_path: Path, log_dir: Path):
+def run_trace(trace_path: Path, log_dir: Path, nice: int = 0):
     basename = trace_path.stem  # .xz除去
     log_path = log_dir / f"{basename}.log"
     print(f"{datetime.now().strftime('%H:%M:%S')} [ChampSim] Running {basename}")
@@ -27,7 +28,7 @@ def run_trace(trace_path: Path, log_dir: Path):
     try:
         with open(log_path, "w") as log_file:
             subprocess.run(
-                ["nice", "-n", "6", str(BIN_PATH), *CMD_ARGS, str(trace_path)],
+                ["nice", "-n", str(nice), str(BIN_PATH), *CMD_ARGS, str(trace_path)],
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 check=True,
@@ -64,6 +65,11 @@ def main():
 
     jobs_count = len(jobs)
     workers_count = max(1, min(NJOBS, os.cpu_count() or 1, jobs_count))
+    nice = 0
+    if 64 >= workers_count > 32:
+        nice = 3
+    elif workers_count > 64:
+        nice = 6
     print(f"{datetime.now():%H:%M:%S} Launching {jobs_count} jobs with {workers_count} workers")
 
     # 並列実行
@@ -75,6 +81,7 @@ def main():
                     run_trace,
                     trace_path=trace_file,
                     log_dir=log_dir,
+                    nice=nice
                 )
             )
 

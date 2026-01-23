@@ -21,7 +21,7 @@ VERSIONS = ["256B", "1KB", "4KB", "16KB", "64KB", "256KB", "1MB", "2MB", "4MB", 
 
 
 # トレース実行関数
-def run_trace_batch(trace_path: Path, log_dir: Path, version: str, prefetcher_name: str):
+def run_trace_batch(trace_path: Path, log_dir: Path, version: str, prefetcher_name: str, nice: int = 0):
     basename = trace_path.stem  # .xz除去
     log_path = log_dir / f"{basename}.log"
     bin_path = str(BASE_BIN_PATH / prefetcher_name / ("champsim_" + version))
@@ -69,6 +69,11 @@ def main():
 
     jobs_count = len(jobs)
     workers_count = max(1, min(NJOBS, os.cpu_count() or 1, jobs_count))
+    nice = 0
+    if 64 >= workers_count > 32:
+        nice = 3
+    elif workers_count > 64:
+        nice = 6
     print(f"{datetime.now():%H:%M:%S} Launching {jobs_count} jobs with {workers_count} workers")
 
     # 並列実行
@@ -82,6 +87,7 @@ def main():
                     log_dir=log_dir,
                     version=version,
                     prefetcher_name=str(args.prefetcher_name),
+                    nice=nice
                 )
             )
 
