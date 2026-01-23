@@ -7,7 +7,7 @@ import argparse
 import os
 
 # 並列ジョブ数
-NJOBS = 126
+NJOBS = 32
 
 # 設定
 BASE_DIR = Path(__file__).parent.parent
@@ -39,12 +39,8 @@ def run_trace(trace_path: Path, log_dir: Path, nice: int = 0):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("prefetcher_name")
+    parser.add_argument("prefetcher_name", nargs="+")
     args = parser.parse_args()
-
-    # 出力ディレクトリ作成
-    log_dir = LOG_BASE_DIR / str(args.prefetcher_name)
-    log_dir.mkdir(parents=True, exist_ok=True)
 
     # トレース一覧取得
     trace_files = deque(TRACES_DIR.glob("*.xz"))
@@ -52,16 +48,22 @@ def main():
     # フィルター取得
     with open(FILTER_FILE, "r", encoding="utf-8") as f:
         trace_filter: set[str] = set(line.strip() for line in f.readlines())
-
+    
     for _ in range(len(trace_files)):
         trace_file = trace_files.popleft()
         if trace_file.stem in trace_filter:
             trace_files.append(trace_file)
 
     jobs = []
-    # 一括実行ジョブ作成
-    for trace_file in trace_files:
-        jobs.append((trace_file, log_dir))
+
+    # 出力ディレクトリ作成
+    for prefetcher_name in args.prefetcher_name:
+        log_dir = LOG_BASE_DIR / str(prefetcher_name)
+        log_dir.mkdir(parents=True, exist_ok=True)
+
+        # 一括実行ジョブ作成
+        for trace_file in trace_files:
+            jobs.append((trace_file, log_dir))
 
     jobs_count = len(jobs)
     workers_count = max(1, min(NJOBS, os.cpu_count() or 1, jobs_count))
