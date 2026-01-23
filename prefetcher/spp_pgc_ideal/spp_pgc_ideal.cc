@@ -169,9 +169,9 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
         // pgc page continuity check
         if (!is_continuous_in_virtual_ideal(trigger_cpu, trigger_vpage, pf_ppage)) {
           if (is_prefetch_in_this_level) {
-            count_map["trashed_va_discontinuous_pgc_l2c"]++;
+            count_map["trashed_va_discontinuous_narrowly_defined_pgc_l2c"]++;
           } else {
-            count_map["trashed_va_discontinuous_pgc_llc"]++;
+            count_map["trashed_va_discontinuous_narrowly_defined_pgc_llc"]++;
           }
 
           if constexpr (GHR_ON) {
@@ -314,8 +314,10 @@ void spp_pgc_ideal::prefetcher_final_stats()
   std::cout << "[SPP] trashed prefetch candidates with lower confidence than llc fill threshold: " << count_map["trashed_prefetch_low_confidence"] << "\n";
   std::cout << "[SPP] trashed pgc candidates with lower confidence than llc fill threshold: " << count_map["trashed_pgc_low_confidence"] << "\n";
 
-  std::cout << "[SPP] trashed l2c pgc candidates with virtual address discontinuity: " << count_map["trashed_va_discontinuous_pgc_l2c"] << "\n";
-  std::cout << "[SPP] trashed llc pgc candidates with virtual address discontinuity: " << count_map["trashed_va_discontinuous_pgc_llc"] << "\n";
+  std::cout << "[SPP] trashed l2c narrowly defined pgc candidates with virtual address discontinuity: "
+            << count_map["trashed_va_discontinuous_narrowly_defined_pgc_l2c"] << "\n";
+  std::cout << "[SPP] trashed llc narrowly defined pgc candidates with virtual address discontinuity: "
+            << count_map["trashed_va_discontinuous_narrowly_defined_pgc_llc"] << "\n";
 
   std::cout << "[SPP] total prefetch request: " << count_map["prefetch_request_l2c"] + count_map["prefetch_request_llc"] << "\n";
   std::cout << "[SPP] l2c prefetch request: " << count_map["prefetch_request_l2c"] << "\n";

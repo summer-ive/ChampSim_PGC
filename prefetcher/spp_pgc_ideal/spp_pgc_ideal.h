@@ -65,22 +65,22 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
       {"trashed_prefetch_low_confidence", 0}, // not requested prefetch candidates with lower confidence than llc fill threshold
       {"trashed_pgc_low_confidence", 0},      // not requested pgc candidates with lower confidence than llc fill threshold
       // trashed pgcs below are narrowly defined pgc
-      {"trashed_va_discontinuous_pgc_l2c", 0}, // trashed l2c pgc request due to discontinuity on the virtual memory address
-      {"trashed_va_discontinuous_pgc_llc", 0}, // trashed llc pgc request due to discontinuity on the virtual memory address
+      {"trashed_va_discontinuous_narrowly_defined_pgc_l2c", 0}, // trashed l2c pgc request due to discontinuity on the virtual memory address
+      {"trashed_va_discontinuous_narrowly_defined_pgc_llc", 0}, // trashed llc pgc request due to discontinuity on the virtual memory address
       // prefetch request
-      {"prefetch_request_l2c", 0},
-      {"prefetch_request_llc", 0},
-      {"pgc_request_l2c", 0},
-      {"pgc_request_llc", 0},
-      {"narrowly_defined_pgc_request_l2c", 0},
-      {"narrowly_defined_pgc_request_llc", 0},
+      {"prefetch_request_l2c", 0},             // prefetch requests sent to L2C
+      {"prefetch_request_llc", 0},             // prefetch requests sent to LLC
+      {"pgc_request_l2c", 0},                  // pgc requests sent to L2C
+      {"pgc_request_llc", 0},                  // pgc requests sent to LLC
+      {"narrowly_defined_pgc_request_l2c", 0}, // narrowly defined pgc requests sent to L2C
+      {"narrowly_defined_pgc_request_llc", 0}, // narrowly defined pgc requests sent to LLC
       // prefetch issued
-      {"prefetch_issued_l2c", 0},
-      {"prefetch_issued_llc", 0},
-      {"pgc_issued_l2c", 0},
-      {"pgc_issued_llc", 0},
-      {"narrowly_defined_pgc_issued_l2c", 0},
-      {"narrowly_defined_pgc_issued_llc", 0},
+      {"prefetch_issued_l2c", 0},             // prefetches issued to L2C
+      {"prefetch_issued_llc", 0},             // prefetches issued to LLC
+      {"pgc_issued_l2c", 0},                  // pgcs issued to L2C
+      {"pgc_issued_llc", 0},                  // pgcs issued to LLC
+      {"narrowly_defined_pgc_issued_l2c", 0}, // narrowly defined pgcs issued to L2C
+      {"narrowly_defined_pgc_issued_llc", 0}, // narrowly defined pgcs issued to LLC
       // prefetch useful
       // TODO: llc useful metrics are not implemented
       {"useful_prefetch_l2c", 0},
