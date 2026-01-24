@@ -7,7 +7,7 @@ import argparse
 import os
 
 # 並列ジョブ数
-NJOBS = 126
+NJOBS = 32
 
 # 設定
 BASE_DIR = Path(__file__).parent.parent
@@ -21,7 +21,7 @@ SIGNATURE_REGION_SIZES = ["256B", "1KB", "4KB", "16KB", "64KB", "256KB", "1MB", 
 
 
 # トレース実行関数
-def run_trace_batch(trace_path: Path, log_dir: Path, signature_region_size: str, prefetcher_name: str, nice: int = 0):
+def run_trace_sweep(trace_path: Path, prefetcher_name: str, log_dir: Path, nice: int, signature_region_size: str):
     basename = trace_path.stem  # .xz除去
     log_path = log_dir / f"{basename}.log"
     bin_path = str(BASE_BIN_PATH / prefetcher_name / ("champsim_" + signature_region_size))
@@ -41,7 +41,7 @@ def run_trace_batch(trace_path: Path, log_dir: Path, signature_region_size: str,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("prefetcher_name")
+    parser.add_argument("prefetcher_name", nargs="+")
     args = parser.parse_args()
 
     # トレース一覧取得
@@ -58,14 +58,14 @@ def main():
 
     jobs = []
 
-    for signature_region_size in SIGNATURE_REGION_SIZES:
-        # 出力ディレクトリ作成
-        log_dir = LOG_BASE_DIR / str(args.prefetcher_name) / signature_region_size
-        log_dir.mkdir(parents=True, exist_ok=True)
-
-        # 一括実行ジョブ作成
-        for trace_file in trace_files:
-            jobs.append((signature_region_size, trace_file, log_dir))
+    for prefetcher_name in args.prefetcher_name:
+        for signature_region_size in SIGNATURE_REGION_SIZES:
+            # 出力ディレクトリ作成
+            log_dir = LOG_BASE_DIR / str(prefetcher_name) / signature_region_size
+            log_dir.mkdir(parents=True, exist_ok=True)
+            # 一括実行ジョブ作成
+            for trace_file in trace_files:
+                jobs.append((prefetcher_name, signature_region_size, log_dir, trace_file))
 
     jobs_count = len(jobs)
     workers_count = max(1, min(NJOBS, os.cpu_count() or 1, jobs_count))
@@ -79,15 +79,15 @@ def main():
     # 並列実行
     with ThreadPoolExecutor(max_workers=workers_count) as executor:
         futures = []
-        for signature_region_size, trace_file, log_dir in jobs:
+        for prefetcher_name, signature_region_size, log_dir, trace_file in jobs:
             futures.append(
                 executor.submit(
-                    run_trace_batch,
+                    run_trace_sweep,
                     trace_path=trace_file,
+                    prefetcher_name=prefetcher_name,
                     log_dir=log_dir,
+                    nice=nice,
                     signature_region_size=signature_region_size,
-                    prefetcher_name=str(args.prefetcher_name),
-                    nice=nice
                 )
             )
 
@@ -96,7 +96,7 @@ def main():
             try:
                 future.result()
             except Exception as e:
-                print(f"[{datetime.now():%H:%M:%S}] [ERR] {type(e).__name__}: {e}")
+                print(f"[{datetime.now():%H:%M:%S}] [ERROR] {type(e).__name__}: {e}")
             finally:
                 done += 1
                 if done % 10 == 0 or done == jobs_count:
