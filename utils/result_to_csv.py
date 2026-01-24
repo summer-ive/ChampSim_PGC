@@ -6,14 +6,19 @@ import csv
 import re
 from typing import Any, Iterable
 
-REGION_SIZES = {"256B", "1KB", "4KB", "16KB", "64KB", "256KB", "1MB", "4MB", "16MB", "64MB", "256MB"}
-DEFAULT_REGION_SIZE = "4KB"
+DEFAULT_IDENTITY = {
+    "prefetcher": "unknown_prefetcher",
+    "GHR_ON": False,
+    "REGION_SIZE": "4KB",
+    "workload": "unknown_workload",
+}
 
 # ====== settings (your repo layout) ======
-INIT_DIR: Path = Path(__file__).parent
-DEFAULT_LOG_DIR: Path = INIT_DIR.parent / "logs"
-DEFAULT_METRICS_OUTPUT_PATH: Path = INIT_DIR / "extracted" / "result_metrics.csv"
-DEFAULT_PGC_DIST_OUTPUT_PATH: Path = INIT_DIR / "extracted" / "result_pgc_dist.csv"
+RESULT_DIR: Path = Path(__file__).parent.parent.parent / "results"
+DEFAULT_LOG_DIR: Path = RESULT_DIR / "logs"
+DEFAULT_CSV_DIR: Path = RESULT_DIR / "csv"
+DEFAULT_METRICS_OUTPUT_PATH: Path = DEFAULT_CSV_DIR / "result_metrics.csv"
+DEFAULT_PGC_DIST_OUTPUT_PATH: Path = DEFAULT_CSV_DIR / "result_pgc_distance.csv"
 
 
 # ====== regex: "=== Simulation ===" 以降をできるだけ全部拾う ======
@@ -245,24 +250,36 @@ def parse_log(log_path: Path) -> tuple[dict[str, Any], list[tuple[str, int, int]
     return out, pgc_dist_rows
 
 
-@dataclass(frozen=True)
+@dataclass
 class LogIdentity:
     prefetcher: str
+    ghr: bool
     signature_region_size: str
     workload: str
 
 
 def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Path) -> LogIdentity:
-    parts = log_path.relative_to(log_dir).parts
-    prefetcher = parts[0] if len(parts) >= 1 else "unknown_prefetcher"
-    signature_region_size = parts[1] if ((len(parts) >= 2) and parts[1] in REGION_SIZES) else DEFAULT_REGION_SIZE
-    workload = parsed.get("workload") or "unknown_workload"
-
-    return LogIdentity(
-        prefetcher=prefetcher,
-        signature_region_size=signature_region_size,
-        workload=str(workload),
+    identity = LogIdentity(
+        DEFAULT_IDENTITY["prefetcher"],
+        DEFAULT_IDENTITY["GHR_ON"],
+        DEFAULT_IDENTITY["REGION_SIZE"],
+        DEFAULT_IDENTITY["workload"],
     )
+    parts = log_path.relative_to(log_dir).parts
+    for i in range(len(parts)):
+        if i == 0:
+            identity.prefetcher = parts[0] if len(parts) >= 1 else "unknown_prefetcher"
+        elif i == len(parts) - 1:
+            identity.workload = parsed.get("workload") or "unknown_workload"
+        elif parts[i].lower().startswith("ghr_"):
+            if parts[i].lower() == "ghr_on":
+                identity.ghr = True
+            elif parts[i].lower() == "ghr_off":
+                identity.ghr = False
+        elif parts[i].lower().startswith("st_unit_"):
+            identity.signature_region_size = parts[i].split("_")[2]  # st_unit_<signature_region_size>
+
+    return identity
 
 
 def to_tidy_metrics_rows(identity: LogIdentity, metrics: dict[str, Any]) -> list[dict[str, Any]]:
@@ -286,6 +303,7 @@ def to_tidy_metrics_rows(identity: LogIdentity, metrics: dict[str, Any]) -> list
         rows.append(
             {
                 "prefetcher": identity.prefetcher,
+                "ghr": identity.ghr,
                 "signature_region_size": identity.signature_region_size,
                 "workload": identity.workload,
                 "metric": k,
@@ -301,6 +319,7 @@ def to_tidy_pgc_dist_rows(identity: LogIdentity, pgc_dist_rows: list[tuple[str, 
         rows.append(
             {
                 "prefetcher": identity.prefetcher,
+                "ghr": identity.ghr,
                 "signature_region_size": identity.signature_region_size,
                 "workload": identity.workload,
                 "scope": scope,
@@ -356,12 +375,12 @@ def main(
 
     # write CSV
     with out_metrics_csv.open("w", encoding="utf-8", newline="") as f:
-        fieldnames_metrics = ["prefetcher", "signature_region_size", "workload", "metric", "value"]
+        fieldnames_metrics = ["prefetcher", "ghr", "signature_region_size", "workload", "metric", "value"]
         w = csv.DictWriter(f, fieldnames=fieldnames_metrics)
         w.writeheader()
         w.writerows(all_metrics_rows)
     with out_pgc_dist_csv.open("w", encoding="utf-8", newline="") as f:
-        fieldnames_pgc = ["prefetcher", "signature_region_size", "workload", "scope", "distance", "count"]
+        fieldnames_pgc = ["prefetcher", "ghr", "signature_region_size", "workload", "scope", "distance", "count"]
         w = csv.DictWriter(f, fieldnames=fieldnames_pgc)
         w.writeheader()
         w.writerows(all_pgc_dist_rows)
