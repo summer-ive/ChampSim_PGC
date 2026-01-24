@@ -14,21 +14,21 @@ BASE_DIR = Path(__file__).parent.parent
 TRACES_DIR = BASE_DIR.parent / "traces" / "dp3_traces"
 FILTER_FILE = BASE_DIR / "utils" / "high_mpki_traces.txt"
 LOG_BASE_DIR = BASE_DIR / "logs"
-BIN_PATH = BASE_DIR / "bin" / "champsim"
+BASE_BIN_PATH = BASE_DIR / "bin"
 CMD_ARGS = ["--warmup-instructions", "200000000", "--simulation-instructions", "500000000"]
 
 
-
 # トレース実行関数
-def run_trace(trace_path: Path, log_dir: Path, nice: int = 0):
+def run_trace(trace_path: Path, prefetcher_name: str, log_dir: Path, nice: int):
     basename = trace_path.stem  # .xz除去
     log_path = log_dir / f"{basename}.log"
+    bin_path = str(BASE_BIN_PATH / prefetcher_name / "champsim")
     print(f"{datetime.now().strftime('%H:%M:%S')} [ChampSim] Running {basename}")
 
     try:
         with open(log_path, "w") as log_file:
             subprocess.run(
-                ["nice", "-n", str(nice), str(BIN_PATH), *CMD_ARGS, str(trace_path)],
+                ["nice", "-n", str(nice), str(bin_path), *CMD_ARGS, str(trace_path)],
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 check=True,
@@ -48,7 +48,7 @@ def main():
     # フィルター取得
     with open(FILTER_FILE, "r", encoding="utf-8") as f:
         trace_filter: set[str] = set(line.strip() for line in f.readlines())
-    
+
     for _ in range(len(trace_files)):
         trace_file = trace_files.popleft()
         if trace_file.stem in trace_filter:
@@ -63,7 +63,7 @@ def main():
 
         # 一括実行ジョブ作成
         for trace_file in trace_files:
-            jobs.append((trace_file, log_dir))
+            jobs.append((prefetcher_name, log_dir, trace_file))
 
     jobs_count = len(jobs)
     workers_count = max(1, min(NJOBS, os.cpu_count() or 1, jobs_count))
@@ -77,13 +77,10 @@ def main():
     # 並列実行
     with ThreadPoolExecutor(max_workers=workers_count) as executor:
         futures = []
-        for trace_file, log_dir in jobs:
+        for prefetcher_name, log_dir, trace_file in jobs:
             futures.append(
                 executor.submit(
-                    run_trace,
-                    trace_path=trace_file,
-                    log_dir=log_dir,
-                    nice=nice
+                    run_trace, trace_path=trace_file, prefetcher_name=prefetcher_name, log_dir=log_dir, nice=nice
                 )
             )
 
