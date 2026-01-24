@@ -1,7 +1,7 @@
 #!bin/bash
 set -euo pipefail
 
-LOG_DIR="../logs/no_prefetcher"
+LOG_DIR="../log/no_prefetcher"
 OUT="spp_total_prefetches.txt"
 
 : > "$OUT"

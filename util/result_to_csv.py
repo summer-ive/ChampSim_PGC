@@ -14,8 +14,8 @@ DEFAULT_IDENTITY = {
 }
 
 # ====== settings (your repo layout) ======
-RESULT_DIR: Path = Path(__file__).parent.parent.parent / "results"
-DEFAULT_LOG_DIR: Path = RESULT_DIR / "logs"
+RESULT_DIR: Path = Path(__file__).parent.parent.parent / "file" / "result"
+DEFAULT_LOG_DIR: Path = RESULT_DIR / "log"
 DEFAULT_CSV_DIR: Path = RESULT_DIR / "csv"
 DEFAULT_METRICS_OUTPUT_PATH: Path = DEFAULT_CSV_DIR / "result_metrics.csv"
 DEFAULT_PGC_DIST_OUTPUT_PATH: Path = DEFAULT_CSV_DIR / "result_pgc_distance.csv"
@@ -333,8 +333,8 @@ def to_tidy_pgc_dist_rows(identity: LogIdentity, pgc_dist_rows: list[tuple[str, 
 def iter_log_files(log_dir: Path) -> Iterable[Path]:
     """
     patterns of log directory:
-    - logs/<prefetcher>/<signature_region_size>/*.log
-    - logs/<prefetcher>/*.log
+    - log/<prefetcher>/<signature_region_size>/*.log
+    - log/<prefetcher>/*.log
     the latter is 4KB signature region size by default.
     """
     yield from log_dir.rglob("*.log")

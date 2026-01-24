@@ -4,7 +4,7 @@ import re
 import csv
 
 INIT_DIR: Path = Path(__file__).parent
-LOG_DIR: Path = INIT_DIR.parent / "logs"
+LOG_DIR: Path = INIT_DIR.parent / "log"
 OUTPUT_DIR: Path = INIT_DIR / "extracted"
 
 

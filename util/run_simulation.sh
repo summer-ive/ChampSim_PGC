@@ -6,7 +6,7 @@ NJOBS=126
 
 # トレースとログのディレクトリ
 TRACES_DIR="../traces/DPC-3"
-LOG_DIR="../logs/no_prefetcher"
+LOG_DIR="../log/no_prefetcher"
 CMD="--warmup-instructions 200000000 --simulation-instructions 500000000"
 
 # 出力先ディレクトリを作成

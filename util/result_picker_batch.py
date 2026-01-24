@@ -4,7 +4,7 @@ import re
 import csv
 
 INIT_DIR: Path = Path(__file__).parent
-LOG_DIR: Path = INIT_DIR.parent / "logs"
+LOG_DIR: Path = INIT_DIR.parent / "log"
 OUTPUT_DIR: Path = INIT_DIR / "extracted"
 
 
@@ -32,95 +32,77 @@ def pickup(data):
                     with open(target_log_path, "r", encoding="utf-8") as f:
                         log_data = f.readlines()
 
-                    ipc: float | None = None
-                    instruction_count: int | None = None
-                    llc_load_miss: int | None = None
-                    llc_load_mpki: float | None = None
-                    st_unit_size: float | None = None
-                    prefetch_count: int | None = None
-                    page_cross_count: int | None = None
-                    true_pgc_count: int | None = None
-                    true_pgc_allowed_count: int | None = None
-                    discarded_pgc_count: int | None = None
-                    l2c_prefetch_count: int | None = None
-                    llc_prefetch_count: int | None = None
-                    useful_pgc_count: int | None = None
+                    result: dict[str, object] = {"trace": trace}
 
                     for line in log_data:
-                        match = re.search(r"CPU 0 cumulative IPC:\s*([\d.]+)\s+instructions:\s*(\d+)", line)
+                        match = re.search(r"Number of CPUs: (\d+)", line)
+                        if match is not None:
+                            result["cpu_count"] = int(match.group(1))
+
+                        match = re.search(r"Page size: (\d+)", line)
+                        if match is not None:
+                            result["page_size"] = int(match.group(1))
+
+                        match = re.search(r"Warmup Instructions: (\d+)", line)
+                        if match is not None:
+                            result["warmup_instruction_count"] = int(match.group(1))
+
+                        match = re.search(
+                            r"Off-chip DRAM Size: (\d+) GiB Channels: (\d+) Width: (\d+)-bit Data Rate: (\d+) MT/s",
+                            line,
+                        )
+                        if match is not None:
+                            result["dram_size_GiB"] = int(match.group(1))
+                            result["dram_channels"] = int(match.group(2))
+                            result["dram_width_bit"] = int(match.group(3))
+                            result["dram_data_rate_MT/s"] = int(match.group(4))
+
+                        match = re.search(r"CPU 0 cumulative IPC: ([\d.]+) instructions: (\d+) cycles: (\d+)", line)
                         if match is not None:  # IPCを抽出
-                            ipc = float(match.group(1))
-                            instruction_count = int(match.group(2))
+                            result["ipc"] = float(match.group(1))
+                            result["simulation_instruction_count"] = int(match.group(2))
+                            result["simulation_cycle_count"] = int(match.group(3))
 
                         match = re.search(r"cpu0->LLC LOAD\s+ACCESS:.*?MISS:\s*(\d+)", line)
                         if match is not None:  # LLC MPKIを抽出
-                            llc_load_miss = int(match.group(1))
-                            llc_load_mpki = (
-                                llc_load_miss / (instruction_count / 1000)
-                                if llc_load_miss is not None and instruction_count is not None
+                            result["llc_load_miss"] = int(match.group(1))
+                            result["llc_load_mpki"] = (
+                                result["llc_load_miss"] / (result["instruction_count"] / 1000)  # type: ignore
+                                if result["llc_load_miss"] is not None and result["instruction_count"] is not None
                                 else None
                             )
 
                         match = re.search(r"\[SPP\] signature-table unit size: 2^(\d+)", line)
                         if match is not None:
-                            st_unit_size = int(match.group(1))
+                            result["st_unit_size"] = int(match.group(1))
 
                         match = re.search(r"\[SPP\] total prefetches: (\d+)", line)
                         if match is not None:
-                            prefetch_count = int(match.group(1))
-
+                            result["prefetch_count"] = int(match.group(1))
                         match = re.search(r"\[SPP\] page-crossing count: (\d+)", line)
                         if match is not None:
-                            page_cross_count = int(match.group(1))
+                            result["page_cross_count"] = int(match.group(1))
 
                         match = re.search(r"\[SPP\] true page-crossing count: (\d+)", line)
                         if match is not None:
-                            true_pgc_count = int(match.group(1))
-
+                            result["true_pgc_count"] = int(match.group(1))
                         match = re.search(r"\[SPP\] allowed true page-crossing count: (\d+)", line)
                         if match is not None:
-                            true_pgc_allowed_count = int(match.group(1))
+                            result["true_pgc_allowed_count"] = int(match.group(1))
 
                         match = re.search(r"\[SPP\] discarded page-crossing count: (\d+)", line)
                         if match is not None:
-                            discarded_pgc_count = int(match.group(1))
-
+                            result["discarded_pgc_count"] = int(match.group(1))
                         match = re.search(r"\[SPP\] l2c prefetches: (\d+)", line)
                         if match is not None:
-                            l2c_prefetch_count = int(match.group(1))
+                            result["l2c_prefetch_count"] = int(match.group(1))
 
                         match = re.search(r"\[SPP\] llc prefetches: (\d+)", line)
                         if match is not None:
-                            llc_prefetch_count = int(match.group(1))
-
+                            result["llc_prefetch_count"] = int(match.group(1))
                         match = re.search(r"\[SPP\] useful pgc count: (\d+)", line)
                         if match is not None:
-                            useful_pgc_count = int(match.group(1))
-
-                    result: dict[str, str | int | float | None] = {
-                        "trace": trace,
-                        "ipc": ipc,
-                        "instruction_count": instruction_count,
-                        "llc_load_mpki": llc_load_mpki,
-                    }
-                    if st_unit_size is not None:
-                        result["st_unit_size"] = st_unit_size
-                    if prefetch_count is not None:
-                        result["prefetch_count"] = prefetch_count
-                    if page_cross_count is not None:
-                        result["page_cross_count"] = page_cross_count
-                    if true_pgc_count is not None:
-                        result["true_pgc_count"] = true_pgc_count
-                    if true_pgc_allowed_count is not None:
-                        result["true_pgc_allowed_count"] = true_pgc_allowed_count
-                    if discarded_pgc_count is not None:
-                        result["discarded_pgc_count"] = discarded_pgc_count
-                    if l2c_prefetch_count is not None:
-                        result["l2c_prefetch_count"] = l2c_prefetch_count
-                    if llc_prefetch_count is not None:
-                        result["llc_prefetch_count"] = llc_prefetch_count
-                    if useful_pgc_count is not None:
-                        result["useful_pgc_count"] = useful_pgc_count
+                            result["useful_pgc_count"] = int(match.group(1))
 
                     data[prefetcher_name][version].append(result)
 
