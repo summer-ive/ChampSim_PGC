@@ -23,7 +23,7 @@ def run_trace(trace_path: Path, prefetcher_name: str, log_dir: Path, nice: int):
     basename = trace_path.stem  # .xz除去
     log_path = log_dir / f"{basename}.log"
     bin_path = str(BASE_BIN_PATH / prefetcher_name / "champsim")
-    print(f"{datetime.now().strftime('%H:%M:%S')} [ChampSim] Running {basename}")
+    print(f"{datetime.now().strftime('%H:%M:%S')} [INFO] Running {basename}")
 
     try:
         with open(log_path, "w") as log_file:
@@ -34,7 +34,7 @@ def run_trace(trace_path: Path, prefetcher_name: str, log_dir: Path, nice: int):
                 check=True,
             )
     except subprocess.CalledProcessError as e:
-        print(f"Error running {basename}: {e}")
+        print(f"[{datetime.now():%H:%M:%S}] [ERROR] Error running {basename}: {e}")
 
 
 def main():
@@ -72,7 +72,7 @@ def main():
         nice = 3
     elif workers_count > 64:
         nice = 6
-    print(f"{datetime.now():%H:%M:%S} Launching {jobs_count} jobs with {workers_count} workers")
+    print(f"{datetime.now():%H:%M:%S} [INFO] Launching {jobs_count} jobs with {workers_count} workers")
 
     # 並列実行
     with ThreadPoolExecutor(max_workers=workers_count) as executor:
@@ -85,15 +85,15 @@ def main():
             )
 
         done = 0
+        result = None
         for future in as_completed(futures):
             try:
-                future.result()
+                result = future.result()
             except Exception as e:
                 print(f"[{datetime.now():%H:%M:%S}] [ERROR] {type(e).__name__}: {e}")
             finally:
                 done += 1
-                if done % 10 == 0 or done == jobs_count:
-                    print(f"{datetime.now():%H:%M:%S} Progress: {done}/{jobs_count} finished")
+                print(f"{datetime.now():%H:%M:%S} [INFO] Progress: {done}/{jobs_count} Complete {result}")
 
 
 if __name__ == "__main__":
