@@ -234,7 +234,7 @@ def parse_log(log_path: Path) -> tuple[dict[str, Any], list[tuple[str, int, int]
             pgc_dist_rows.append((current_pgc_scope, dist, count))
             continue
 
-    # derived metric example (optional): LLC LOAD MPKI if present
+    # derived metrics
     if "roi_instructions" in out:
         instr = int(out["roi_instructions"])
         denom = instr / 1000.0 if instr else None
