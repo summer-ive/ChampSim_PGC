@@ -17,6 +17,8 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
   constexpr static bool GHR_ON = true;
   constexpr static bool SPP_SANITY_CHECK = true;
   constexpr static bool SPP_DEBUG_PRINT = false;
+  constexpr static bool PGC_ON = true;
+  constexpr static bool PGC_CONTINUITY_CHECK_ON = true;
 
   // Signature table parameters
   constexpr static std::size_t ST_SET = 1;
@@ -50,9 +52,6 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
   constexpr static unsigned GLOBAL_COUNTER_BIT = 10;
   constexpr static uint32_t GLOBAL_COUNTER_MAX = ((1 << GLOBAL_COUNTER_BIT) - 1);
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
-
-  // PGC enabling flag
-  constexpr static bool IS_PGC_ENABLED = true;
 
   // Statistics variants for PGC simulation
   bool roi_stats_initialized = false;

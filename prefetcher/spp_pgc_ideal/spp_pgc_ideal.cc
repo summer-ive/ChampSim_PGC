@@ -8,7 +8,7 @@
 void spp_pgc_ideal::prefetcher_initialize()
 {
   std::cout << "Prefetcher: spp_pgc_ideal" << std::endl;
-  std::cout << "PGC enabled: " << (IS_PGC_ENABLED ? "true" : "false") << std::endl;
+  std::cout << "PGC enabled: " << (PGC_ON ? "true" : "false") << std::endl;
   std::cout << "GHR ON: " << (GHR_ON ? "true" : "false") << std::endl;
   std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
   std::cout << "Initialize SIGNATURE TABLE" << std::endl;
@@ -157,7 +157,7 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
         }
 
         // case when PGC is disabled
-        if (!IS_PGC_ENABLED && is_pgc_candidate) {
+        if (!PGC_ON && is_pgc_candidate) {
           if constexpr (GHR_ON) {
             // Store this prefetch request in GHR to bootstrap SPP learning when
             // we see a ST miss (i.e., accessing a new page)
@@ -262,7 +262,7 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
         do_lookahead = 1;
       } else {
         count_map["trashed_prefetch_low_confidence"]++;
-        if (IS_PGC_ENABLED && (pf_ppage != trigger_ppage)) {
+        if (PGC_ON && (pf_ppage != trigger_ppage)) {
           count_map["trashed_pgc_low_confidence"]++;
         }
       }
