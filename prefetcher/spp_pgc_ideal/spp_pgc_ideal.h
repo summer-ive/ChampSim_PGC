@@ -14,7 +14,7 @@ struct spp_pgc_ideal : public champsim::modules::prefetcher {
   // SPP functional knobs
   constexpr static bool LOOKAHEAD_ON = true;
   constexpr static bool FILTER_ON = true;
-  constexpr static bool GHR_ON = false;
+  constexpr static bool GHR_ON = true;
   constexpr static bool SPP_SANITY_CHECK = true;
   constexpr static bool SPP_DEBUG_PRINT = false;
 
