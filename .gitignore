@@ -31,5 +31,6 @@ compile_commands.json
 .vscode/
 **/.DS_Store
 
-traces
-venv
+traces/
+venv/
+log/
