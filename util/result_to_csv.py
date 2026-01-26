@@ -345,7 +345,7 @@ def main(
     out_metrics_csv: Path = DEFAULT_METRICS_OUTPUT_PATH,
     out_pgc_dist_csv: Path = DEFAULT_PGC_DIST_OUTPUT_PATH,
 ) -> None:
-    print("[Start] Processing logs...")
+    print("[INFO] Processing logs...")
     print(f"[INFO] metrics: {log_dir} -> {out_metrics_csv}")
     print(f"[INFO] pgc_dist: {log_dir} -> {out_pgc_dist_csv}")
 
@@ -370,7 +370,7 @@ def main(
         all_pgc_dist_rows.extend(pgc_dist_rows)
 
     if not all_metrics_rows:
-        print(f"[Complete] No rows generated. (skipped={len(skipped_logs)})")
+        print(f"[INFO] No rows generated. (skipped={len(skipped_logs)})")
         return
 
     # write CSV
@@ -385,11 +385,11 @@ def main(
         w.writeheader()
         w.writerows(all_pgc_dist_rows)
 
-    print(f"[Complete] Skipped logs without marker={len(skipped_logs)}")
+    print(f"[INFO] Skipped logs without marker={len(skipped_logs)}")
     for skipped_log in skipped_logs:
-        print(f"  [Skipped] {skipped_log}")
-    print(f"[Complete] Write {len(all_metrics_rows)} rows to {out_metrics_csv}")
-    print(f"[Complete] Write {len(all_pgc_dist_rows)} rows to {out_pgc_dist_csv}")
+        print(f"  [INFO] Skipped: {skipped_log}")
+    print(f"[INFO] Complete writing {len(all_metrics_rows)} rows to {out_metrics_csv}")
+    print(f"[INFO] Complete writing {len(all_pgc_dist_rows)} rows to {out_pgc_dist_csv}")
 
 
 if __name__ == "__main__":
