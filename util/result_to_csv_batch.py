@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import csv
 import re
+import os
 from typing import Any, Iterable
 
 DEFAULT_IDENTITY = {
@@ -15,10 +16,10 @@ DEFAULT_IDENTITY = {
 
 # ====== settings (your repo layout) ======
 RESULT_DIR: Path = Path(__file__).parent.parent.parent / "file" / "result"
-DEFAULT_LOG_DIR: Path = RESULT_DIR / "log"
-DEFAULT_CSV_DIR: Path = RESULT_DIR / "csv"
-DEFAULT_METRICS_OUTPUT_PATH: Path = DEFAULT_CSV_DIR / "result_metrics.csv"
-DEFAULT_PGC_DIST_OUTPUT_PATH: Path = DEFAULT_CSV_DIR / "result_pgc_distance.csv"
+DEFAULT_INPUT_DIR: Path = RESULT_DIR / "csv_input"
+DEFAULT_OUTPUT_DIR: Path = RESULT_DIR / "csv_output"
+DEFAULT_METRICS_OUTPUT_NAME: str = "result_metrics.csv"
+DEFAULT_PGC_DIST_OUTPUT_NAME: str = "result_pgc_distance.csv"
 
 
 # ====== regex: "=== Simulation ===" 以降をできるだけ全部拾う ======
@@ -333,63 +334,64 @@ def to_tidy_pgc_dist_rows(identity: LogIdentity, pgc_dist_rows: list[tuple[str, 
 def iter_log_files(log_dir: Path) -> Iterable[Path]:
     """
     patterns of log directory:
-    - logs/<prefetcher>/<signature_region_size>/*.log
-    - logs/<prefetcher>/*.log
+    - log/<prefetcher>/<signature_region_size>/*.log
+    - log/<prefetcher>/*.log
     the latter is 4KB signature region size by default.
     """
     yield from log_dir.rglob("*.log")
 
 
-def main(
-    log_dir: Path = DEFAULT_LOG_DIR,
-    out_metrics_csv: Path = DEFAULT_METRICS_OUTPUT_PATH,
-    out_pgc_dist_csv: Path = DEFAULT_PGC_DIST_OUTPUT_PATH,
-) -> None:
-    print("[Start] Processing logs...")
-    print(f"[INFO] metrics: {log_dir} -> {out_metrics_csv}")
-    print(f"[INFO] pgc_dist: {log_dir} -> {out_pgc_dist_csv}")
+def main(default_input_dir: Path = DEFAULT_INPUT_DIR) -> None:
+    for child_dir in [f for f in os.listdir(default_input_dir) if os.path.isdir(os.path.join(default_input_dir, f))]:
+        log_dir: Path = default_input_dir / child_dir
+        out_metrics_csv: Path = DEFAULT_OUTPUT_DIR / child_dir / DEFAULT_METRICS_OUTPUT_NAME
+        out_pgc_dist_csv: Path = DEFAULT_OUTPUT_DIR / child_dir / DEFAULT_PGC_DIST_OUTPUT_NAME
 
-    log_dir = log_dir.resolve()
-    out_metrics_csv.parent.mkdir(parents=True, exist_ok=True)
-    out_pgc_dist_csv.parent.mkdir(parents=True, exist_ok=True)
+        print("[Start] Processing logs...")
+        print(f"[INFO] metrics: {log_dir} -> {out_metrics_csv}")
+        print(f"[INFO] pgc_dist: {log_dir} -> {out_pgc_dist_csv}")
 
-    all_metrics_rows: list[dict[str, Any]] = []
-    all_pgc_dist_rows: list[dict[str, Any]] = []
-    skipped_logs: list[Path] = []
+        log_dir = log_dir.resolve()
+        out_metrics_csv.parent.mkdir(parents=True, exist_ok=True)
+        out_pgc_dist_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    for log_path in iter_log_files(log_dir):
-        parsed_metrics, parsed_pgc_dist_rows = parse_log(log_path)
-        if not parsed_metrics:
-            skipped_logs.append(log_path)
-            continue
+        all_metrics_rows: list[dict[str, Any]] = []
+        all_pgc_dist_rows: list[dict[str, Any]] = []
+        skipped_logs: list[Path] = []
 
-        identity = infer_identity_from_path(log_path, parsed_metrics, log_dir)
-        metrics_rows = to_tidy_metrics_rows(identity, parsed_metrics)
-        pgc_dist_rows = to_tidy_pgc_dist_rows(identity, parsed_pgc_dist_rows)
-        all_metrics_rows.extend(metrics_rows)
-        all_pgc_dist_rows.extend(pgc_dist_rows)
+        for log_path in iter_log_files(log_dir):
+            parsed_metrics, parsed_pgc_dist_rows = parse_log(log_path)
+            if not parsed_metrics:
+                skipped_logs.append(log_path)
+                continue
 
-    if not all_metrics_rows:
-        print(f"[Complete] No rows generated. (skipped={len(skipped_logs)})")
-        return
+            identity = infer_identity_from_path(log_path, parsed_metrics, log_dir)
+            metrics_rows = to_tidy_metrics_rows(identity, parsed_metrics)
+            pgc_dist_rows = to_tidy_pgc_dist_rows(identity, parsed_pgc_dist_rows)
+            all_metrics_rows.extend(metrics_rows)
+            all_pgc_dist_rows.extend(pgc_dist_rows)
 
-    # write CSV
-    with out_metrics_csv.open("w", encoding="utf-8", newline="") as f:
-        fieldnames_metrics = ["prefetcher", "ghr", "signature_region_size", "workload", "metric", "value"]
-        w = csv.DictWriter(f, fieldnames=fieldnames_metrics)
-        w.writeheader()
-        w.writerows(all_metrics_rows)
-    with out_pgc_dist_csv.open("w", encoding="utf-8", newline="") as f:
-        fieldnames_pgc = ["prefetcher", "ghr", "signature_region_size", "workload", "scope", "distance", "count"]
-        w = csv.DictWriter(f, fieldnames=fieldnames_pgc)
-        w.writeheader()
-        w.writerows(all_pgc_dist_rows)
+        if not all_metrics_rows:
+            print(f"[Complete] No rows generated. (skipped={len(skipped_logs)})")
+            return
 
-    print(f"[Complete] Skipped logs without marker={len(skipped_logs)}")
-    for skipped_log in skipped_logs:
-        print(f"  [Skipped] {skipped_log}")
-    print(f"[Complete] Write {len(all_metrics_rows)} rows to {out_metrics_csv}")
-    print(f"[Complete] Write {len(all_pgc_dist_rows)} rows to {out_pgc_dist_csv}")
+        # write CSV
+        with out_metrics_csv.open("w", encoding="utf-8", newline="") as f:
+            fieldnames_metrics = ["prefetcher", "ghr", "signature_region_size", "workload", "metric", "value"]
+            w = csv.DictWriter(f, fieldnames=fieldnames_metrics)
+            w.writeheader()
+            w.writerows(all_metrics_rows)
+        with out_pgc_dist_csv.open("w", encoding="utf-8", newline="") as f:
+            fieldnames_pgc = ["prefetcher", "ghr", "signature_region_size", "workload", "scope", "distance", "count"]
+            w = csv.DictWriter(f, fieldnames=fieldnames_pgc)
+            w.writeheader()
+            w.writerows(all_pgc_dist_rows)
+
+        print(f"[Complete] Skipped logs without marker={len(skipped_logs)}")
+        for skipped_log in skipped_logs:
+            print(f"  [Skipped] {skipped_log}")
+        print(f"[Complete] Write {len(all_metrics_rows)} rows to {out_metrics_csv}")
+        print(f"[Complete] Write {len(all_pgc_dist_rows)} rows to {out_pgc_dist_csv}")
 
 
 if __name__ == "__main__":
