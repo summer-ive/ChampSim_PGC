@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import csv
 import re
+import os
 from typing import Any, Iterable
+import argparse
 
 DEFAULT_IDENTITY = {
     "prefetcher": "unknown_prefetcher",
@@ -16,13 +18,12 @@ DEFAULT_IDENTITY = {
 
 # ====== settings (your repo layout) ======
 RESULT_DIR: Path = Path(__file__).parent.parent.parent / "file" / "result"
-DEFAULT_LOG_DIR: Path = RESULT_DIR / "log"
-DEFAULT_CSV_DIR: Path = RESULT_DIR / "csv"
-DEFAULT_METRICS_OUTPUT_PATH: Path = DEFAULT_CSV_DIR / "result_metrics.csv"
-DEFAULT_PGC_DIST_OUTPUT_PATH: Path = DEFAULT_CSV_DIR / "result_pgc_distance.csv"
+DEFAULT_INPUT_DIR: Path = RESULT_DIR / "csv_input"
+DEFAULT_OUTPUT_DIR: Path = RESULT_DIR / "csv_output"
+DEFAULT_METRICS_OUTPUT_NAME: str = "result_metrics.csv"
+DEFAULT_PGC_DIST_OUTPUT_NAME: str = "result_pgc_distance.csv"
 FIELDS_METRICS = ["prefetcher", "pgc", "ghr", "signature_region_size", "workload", "metric", "value"]
 FIELDS_PGC_DISTANCE = ["prefetcher", "pgc", "ghr", "signature_region_size", "workload", "scope", "distance", "count"]
-
 
 # ====== regex: "=== Simulation ===" 以降をできるだけ全部拾う ======
 RE_TRACE = re.compile(r"^CPU\s+0\s+runs\s+(.+)$")
@@ -345,63 +346,131 @@ def to_tidy_pgc_dist_rows(identity: LogIdentity, pgc_dist_rows: list[tuple[str, 
 def iter_log_files(log_dir: Path) -> Iterable[Path]:
     """
     patterns of log directory:
-    - logs/<prefetcher>/<signature_region_size>/*.log
-    - logs/<prefetcher>/*.log
+    - log/<prefetcher>/<signature_region_size>/*.log
+    - log/<prefetcher>/*.log
     the latter is 4KB signature region size by default.
     """
     yield from log_dir.rglob("*.log")
 
 
-def main(
-    log_dir: Path = DEFAULT_LOG_DIR,
-    out_metrics_csv: Path = DEFAULT_METRICS_OUTPUT_PATH,
-    out_pgc_dist_csv: Path = DEFAULT_PGC_DIST_OUTPUT_PATH,
-) -> None:
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Process log files and generate CSV reports.")
+    parser.add_argument(
+        "--input-dir",
+        type=Path,
+        default=DEFAULT_INPUT_DIR,
+        help="Directory containing log files to process",
+    )
+    parser.add_argument(
+        "--batch",
+        type=bool,
+        default=True,
+        help="Process logs in batch mode",
+    )
+    args = parser.parse_args()
+    is_batch_mode = args.batch
+    default_input_dir = args.input_dir
+
+    log_dir = default_input_dir
+    out_metrics_csv: Path = DEFAULT_OUTPUT_DIR / DEFAULT_METRICS_OUTPUT_NAME
+    out_pgc_dist_csv: Path = DEFAULT_OUTPUT_DIR / DEFAULT_PGC_DIST_OUTPUT_NAME
     print("[INFO] Processing logs...")
-    print(f"[INFO] metrics: {log_dir} -> {out_metrics_csv}")
-    print(f"[INFO] pgc_dist: {log_dir} -> {out_pgc_dist_csv}")
 
-    log_dir = log_dir.resolve()
-    out_metrics_csv.parent.mkdir(parents=True, exist_ok=True)
-    out_pgc_dist_csv.parent.mkdir(parents=True, exist_ok=True)
+    if is_batch_mode:
+        for child_dir in [
+            f for f in os.listdir(default_input_dir) if os.path.isdir(os.path.join(default_input_dir, f))
+        ]:
+            log_dir: Path = default_input_dir / child_dir
+            out_metrics_csv: Path = DEFAULT_OUTPUT_DIR / child_dir / DEFAULT_METRICS_OUTPUT_NAME
+            out_pgc_dist_csv: Path = DEFAULT_OUTPUT_DIR / child_dir / DEFAULT_PGC_DIST_OUTPUT_NAME
 
-    all_metrics_rows: list[dict[str, Any]] = []
-    all_pgc_dist_rows: list[dict[str, Any]] = []
-    skipped_logs: list[Path] = []
+            print(f"[INFO] metrics: {log_dir} -> {out_metrics_csv}")
+            print(f"[INFO] pgc_dist: {log_dir} -> {out_pgc_dist_csv}")
 
-    for log_path in iter_log_files(log_dir):
-        parsed_metrics, parsed_pgc_dist_rows = parse_log(log_path)
-        if not parsed_metrics:
-            skipped_logs.append(log_path)
-            continue
+            log_dir = log_dir.resolve()
+            out_metrics_csv.parent.mkdir(parents=True, exist_ok=True)
+            out_pgc_dist_csv.parent.mkdir(parents=True, exist_ok=True)
 
-        identity = infer_identity_from_path(log_path, parsed_metrics, log_dir)
-        metrics_rows = to_tidy_metrics_rows(identity, parsed_metrics)
-        pgc_dist_rows = to_tidy_pgc_dist_rows(identity, parsed_pgc_dist_rows)
-        all_metrics_rows.extend(metrics_rows)
-        all_pgc_dist_rows.extend(pgc_dist_rows)
+            all_metrics_rows: list[dict[str, Any]] = []
+            all_pgc_dist_rows: list[dict[str, Any]] = []
+            skipped_logs: list[Path] = []
 
-    if not all_metrics_rows:
-        print(f"[INFO] No rows generated. (skipped={len(skipped_logs)})")
-        return
+            for log_path in iter_log_files(log_dir):
+                parsed_metrics, parsed_pgc_dist_rows = parse_log(log_path)
+                if not parsed_metrics:
+                    skipped_logs.append(log_path)
+                    continue
 
-    # write CSV
-    with out_metrics_csv.open("w", encoding="utf-8", newline="") as f:
+                identity = infer_identity_from_path(log_path, parsed_metrics, log_dir)
+                metrics_rows = to_tidy_metrics_rows(identity, parsed_metrics)
+                pgc_dist_rows = to_tidy_pgc_dist_rows(identity, parsed_pgc_dist_rows)
+                all_metrics_rows.extend(metrics_rows)
+                all_pgc_dist_rows.extend(pgc_dist_rows)
 
-        w = csv.DictWriter(f, fieldnames=FIELDS_METRICS)
-        w.writeheader()
-        w.writerows(all_metrics_rows)
-    with out_pgc_dist_csv.open("w", encoding="utf-8", newline="") as f:
+            if not all_metrics_rows:
+                print(f"[INFO] No rows generated. (skipped={len(skipped_logs)})")
+                return
 
-        w = csv.DictWriter(f, fieldnames=FIELDS_PGC_DISTANCE)
-        w.writeheader()
-        w.writerows(all_pgc_dist_rows)
+            # write CSV
+            with out_metrics_csv.open("w", encoding="utf-8", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=FIELDS_METRICS)
+                w.writeheader()
+                w.writerows(all_metrics_rows)
+            with out_pgc_dist_csv.open("w", encoding="utf-8", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=FIELDS_PGC_DISTANCE)
+                w.writeheader()
+                w.writerows(all_pgc_dist_rows)
 
-    print(f"[INFO] Skipped logs without marker={len(skipped_logs)}")
-    for skipped_log in skipped_logs:
-        print(f"  [INFO] Skipped: {skipped_log}")
-    print(f"[INFO] Complete writing {len(all_metrics_rows)} rows to {out_metrics_csv}")
-    print(f"[INFO] Complete writing {len(all_pgc_dist_rows)} rows to {out_pgc_dist_csv}")
+            if len(skipped_logs) > 0:
+                print(f"[INFO] Skipped logs without marker={len(skipped_logs)}")
+                for skipped_log in skipped_logs:
+                    print(f"  [INFO] Skipped: {skipped_log}")
+            print(f"[INFO] Complete writing {len(all_metrics_rows)} rows to {out_metrics_csv}")
+            print(f"[INFO] Complete writing {len(all_pgc_dist_rows)} rows to {out_pgc_dist_csv}")
+    else:
+        print(f"[INFO] metrics: {log_dir} -> {out_metrics_csv}")
+        print(f"[INFO] pgc_dist: {log_dir} -> {out_pgc_dist_csv}")
+
+        log_dir = log_dir.resolve()
+        out_metrics_csv.parent.mkdir(parents=True, exist_ok=True)
+        out_pgc_dist_csv.parent.mkdir(parents=True, exist_ok=True)
+
+        all_metrics_rows: list[dict[str, Any]] = []
+        all_pgc_dist_rows: list[dict[str, Any]] = []
+        skipped_logs: list[Path] = []
+
+        for log_path in iter_log_files(log_dir):
+            parsed_metrics, parsed_pgc_dist_rows = parse_log(log_path)
+            if not parsed_metrics:
+                skipped_logs.append(log_path)
+                continue
+
+            identity = infer_identity_from_path(log_path, parsed_metrics, log_dir)
+            metrics_rows = to_tidy_metrics_rows(identity, parsed_metrics)
+            pgc_dist_rows = to_tidy_pgc_dist_rows(identity, parsed_pgc_dist_rows)
+            all_metrics_rows.extend(metrics_rows)
+            all_pgc_dist_rows.extend(pgc_dist_rows)
+
+        if not all_metrics_rows:
+            print(f"[INFO] No rows generated. (skipped={len(skipped_logs)})")
+            return
+
+        # write CSV
+        with out_metrics_csv.open("w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=FIELDS_METRICS)
+            w.writeheader()
+            w.writerows(all_metrics_rows)
+        with out_pgc_dist_csv.open("w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=FIELDS_PGC_DISTANCE)
+            w.writeheader()
+            w.writerows(all_pgc_dist_rows)
+
+        if len(skipped_logs) > 0:
+            print(f"[INFO] Skipped logs without marker={len(skipped_logs)}")
+            for skipped_log in skipped_logs:
+                print(f"  [INFO] Skipped: {skipped_log}")
+        print(f"[INFO] Complete writing {len(all_metrics_rows)} rows to {out_metrics_csv}")
+        print(f"[INFO] Complete writing {len(all_pgc_dist_rows)} rows to {out_pgc_dist_csv}")
 
 
 if __name__ == "__main__":
