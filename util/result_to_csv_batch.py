@@ -9,6 +9,7 @@ from typing import Any, Iterable
 
 DEFAULT_IDENTITY = {
     "prefetcher": "unknown_prefetcher",
+    "PGC_ON": False,
     "GHR_ON": False,
     "REGION_SIZE": "4KB",
     "workload": "unknown_workload",
@@ -20,7 +21,8 @@ DEFAULT_INPUT_DIR: Path = RESULT_DIR / "csv_input"
 DEFAULT_OUTPUT_DIR: Path = RESULT_DIR / "csv_output"
 DEFAULT_METRICS_OUTPUT_NAME: str = "result_metrics.csv"
 DEFAULT_PGC_DIST_OUTPUT_NAME: str = "result_pgc_distance.csv"
-
+FIELDS_METRICS = ["prefetcher", "pgc", "ghr", "signature_region_size", "workload", "metric", "value"]
+FIELDS_PGC_DISTANCE = ["prefetcher", "pgc", "ghr", "signature_region_size", "workload", "scope", "distance", "count"]
 
 # ====== regex: "=== Simulation ===" 以降をできるだけ全部拾う ======
 RE_TRACE = re.compile(r"^CPU\s+0\s+runs\s+(.+)$")
@@ -254,6 +256,7 @@ def parse_log(log_path: Path) -> tuple[dict[str, Any], list[tuple[str, int, int]
 @dataclass
 class LogIdentity:
     prefetcher: str
+    pgc: bool
     ghr: bool
     signature_region_size: str
     workload: str
@@ -262,6 +265,7 @@ class LogIdentity:
 def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Path) -> LogIdentity:
     identity = LogIdentity(
         DEFAULT_IDENTITY["prefetcher"],
+        DEFAULT_IDENTITY["PGC_ON"],
         DEFAULT_IDENTITY["GHR_ON"],
         DEFAULT_IDENTITY["REGION_SIZE"],
         DEFAULT_IDENTITY["workload"],
@@ -272,6 +276,11 @@ def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Pa
             identity.prefetcher = parts[0] if len(parts) >= 1 else "unknown_prefetcher"
         elif i == len(parts) - 1:
             identity.workload = parsed.get("workload") or "unknown_workload"
+        elif parts[i].lower().startswith("pgc_"):
+            if parts[i].lower() == "pgc_on":
+                identity.pgc = True
+            elif parts[i].lower() == "pgc_off":
+                identity.pgc = False
         elif parts[i].lower().startswith("ghr_"):
             if parts[i].lower() == "ghr_on":
                 identity.ghr = True
@@ -304,6 +313,7 @@ def to_tidy_metrics_rows(identity: LogIdentity, metrics: dict[str, Any]) -> list
         rows.append(
             {
                 "prefetcher": identity.prefetcher,
+                "pgc": identity.pgc,
                 "ghr": identity.ghr,
                 "signature_region_size": identity.signature_region_size,
                 "workload": identity.workload,
@@ -320,6 +330,7 @@ def to_tidy_pgc_dist_rows(identity: LogIdentity, pgc_dist_rows: list[tuple[str, 
         rows.append(
             {
                 "prefetcher": identity.prefetcher,
+                "pgc": identity.pgc,
                 "ghr": identity.ghr,
                 "signature_region_size": identity.signature_region_size,
                 "workload": identity.workload,
@@ -377,13 +388,11 @@ def main(default_input_dir: Path = DEFAULT_INPUT_DIR) -> None:
 
         # write CSV
         with out_metrics_csv.open("w", encoding="utf-8", newline="") as f:
-            fieldnames_metrics = ["prefetcher", "ghr", "signature_region_size", "workload", "metric", "value"]
-            w = csv.DictWriter(f, fieldnames=fieldnames_metrics)
+            w = csv.DictWriter(f, fieldnames=FIELDS_METRICS)
             w.writeheader()
             w.writerows(all_metrics_rows)
         with out_pgc_dist_csv.open("w", encoding="utf-8", newline="") as f:
-            fieldnames_pgc = ["prefetcher", "ghr", "signature_region_size", "workload", "scope", "distance", "count"]
-            w = csv.DictWriter(f, fieldnames=fieldnames_pgc)
+            w = csv.DictWriter(f, fieldnames=FIELDS_PGC_DISTANCE)
             w.writeheader()
             w.writerows(all_pgc_dist_rows)
 
