@@ -4,7 +4,6 @@
 #include <iostream>
 
 #include "prefetcher_helper.h"
-#include "util/to_underlying.h"
 
 void spp_pgc_pte::prefetcher_initialize()
 {
@@ -275,6 +274,8 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
       count_map["prefetch_candidate_total"]++;
 
       if (confidence_q[i] >= PF_THRESHOLD) {
+        do_lookahead = 1;
+
         const bool is_prefetch_in_this_level = (confidence_q[i] >= FILL_THRESHOLD);
         if (is_prefetch_in_this_level) {
           count_map["prefetch_candidate_l2c"]++;
@@ -401,7 +402,6 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
             std::cout << " depth: " << depth << std::endl;
           }
         }
-        do_lookahead = 1;
       }
     }
     pf_q_head = pf_q_tail;
