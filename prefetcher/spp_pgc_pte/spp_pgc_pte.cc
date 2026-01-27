@@ -282,8 +282,9 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
           count_map["prefetch_candidate_llc"]++;
         }
 
-        // case when PGC is disabled
-        if (!PGC_ON && is_pgc_candidate) {
+        // case1: PGC is off
+        // case2: PGC is on but continuity check is off
+        if ((!PGC_ON && is_pgc_candidate) || (PGC_ON && !PGC_CONTINUITY_CHECK_ON && is_narrowly_defined_pgc_candidate)) {
           if constexpr (GHR_ON) {
             // Store this prefetch request in GHR to bootstrap SPP learning when
             // we see a ST miss (i.e., accessing a new page)
@@ -293,7 +294,7 @@ uint32_t spp_pgc_pte::prefetcher_cache_operate(uint32_t trigger_cpu, champsim::a
         }
 
         // pgc page continuity check
-        if (!is_continuous_in_virtual_with_buffer(trigger_cpu, trigger_ppage, pf_ppage)) {
+        if (PGC_CONTINUITY_CHECK_ON && !is_continuous_in_virtual_with_buffer(trigger_cpu, trigger_ppage, pf_ppage)) {
           if (IS_TEST) {
             std::cout << "[SPP_TEST] VPA continuity can't be confirmed by buffer. Trigger VPA: " << trigger_vpage << " Trigger PPA: " << trigger_ppage
                       << " Prefetch PPA: " << pf_ppage << std::endl;

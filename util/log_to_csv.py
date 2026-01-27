@@ -7,11 +7,20 @@ import re
 import os
 from typing import Any, Iterable
 import argparse
+from enum import Enum
+
+
+class PgcContinuityCheckMode(Enum):
+    OFF = "off"
+    IDEAL = "ideal"
+    BUFFER = "buffer"
+
 
 DEFAULT_IDENTITY = {
     "prefetcher": "unknown_prefetcher",
     "PGC_ON": False,
     "GHR_ON": False,
+    "PGC_CONTINUITY_CHECK_MODE": PgcContinuityCheckMode.OFF,
     "REGION_SIZE": "4KB",
     "workload": "unknown_workload",
 }
@@ -22,8 +31,27 @@ DEFAULT_INPUT_DIR: Path = RESULT_DIR / "csv_input"
 DEFAULT_OUTPUT_DIR: Path = RESULT_DIR / "csv_output"
 DEFAULT_METRICS_OUTPUT_NAME: str = "result_metrics.csv"
 DEFAULT_PGC_DIST_OUTPUT_NAME: str = "result_pgc_distance.csv"
-FIELDS_METRICS = ["prefetcher", "pgc", "ghr", "signature_region_size", "workload", "metric", "value"]
-FIELDS_PGC_DISTANCE = ["prefetcher", "pgc", "ghr", "signature_region_size", "workload", "scope", "distance", "count"]
+FIELDS_METRICS = [
+    "prefetcher",
+    "pgc",
+    "ghr",
+    "pgc_continuity_check_mode",
+    "signature_region_size",
+    "workload",
+    "metric",
+    "value",
+]
+FIELDS_PGC_DISTANCE = [
+    "prefetcher",
+    "pgc",
+    "ghr",
+    "pgc_continuity_check_mode",
+    "signature_region_size",
+    "workload",
+    "scope",
+    "distance",
+    "count",
+]
 
 # ====== regex: "=== Simulation ===" 以降をできるだけ全部拾う ======
 RE_TRACE = re.compile(r"^CPU\s+0\s+runs\s+(.+)$")
@@ -259,6 +287,7 @@ class LogIdentity:
     prefetcher: str
     pgc: bool
     ghr: bool
+    pgc_continuity_check_mode: PgcContinuityCheckMode
     signature_region_size: str
     workload: str
 
@@ -268,6 +297,7 @@ def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Pa
         DEFAULT_IDENTITY["prefetcher"],
         DEFAULT_IDENTITY["PGC_ON"],
         DEFAULT_IDENTITY["GHR_ON"],
+        DEFAULT_IDENTITY["PGC_CONTINUITY_CHECK_MODE"],
         DEFAULT_IDENTITY["REGION_SIZE"],
         DEFAULT_IDENTITY["workload"],
     )
@@ -277,18 +307,26 @@ def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Pa
             identity.prefetcher = parts[0] if len(parts) >= 1 else "unknown_prefetcher"
         elif i == len(parts) - 1:
             identity.workload = parsed.get("workload") or "unknown_workload"
-        elif parts[i].lower().startswith("pgc_"):
+        elif parts[i].lower().startswith("pgc_continuity_check_"):
+            mode_str = parts[i].split("_")[-1]
+            if mode_str.lower() == "ideal":
+                identity.pgc_continuity_check_mode = PgcContinuityCheckMode.IDEAL
+            elif mode_str.lower() == "buffer":
+                identity.pgc_continuity_check_mode = PgcContinuityCheckMode.BUFFER
+            else:
+                identity.pgc_continuity_check_mode = PgcContinuityCheckMode.OFF
+        elif parts[i].lower() in {"pgc_on", "pgc_off"}:
             if parts[i].lower() == "pgc_on":
                 identity.pgc = True
             elif parts[i].lower() == "pgc_off":
                 identity.pgc = False
-        elif parts[i].lower().startswith("ghr_"):
+        elif parts[i].lower() in {"ghr_on", "ghr_off"}:
             if parts[i].lower() == "ghr_on":
                 identity.ghr = True
             elif parts[i].lower() == "ghr_off":
                 identity.ghr = False
         elif parts[i].lower().startswith("st_unit_"):
-            identity.signature_region_size = parts[i].split("_")[2]  # st_unit_<signature_region_size>
+            identity.signature_region_size = parts[i].split("_")[-1]  # st_unit_<signature_region_size>
 
     return identity
 
@@ -316,6 +354,7 @@ def to_tidy_metrics_rows(identity: LogIdentity, metrics: dict[str, Any]) -> list
                 "prefetcher": identity.prefetcher,
                 "pgc": identity.pgc,
                 "ghr": identity.ghr,
+                "pgc_continuity_check_mode": identity.pgc_continuity_check_mode.value,
                 "signature_region_size": identity.signature_region_size,
                 "workload": identity.workload,
                 "metric": k,
@@ -333,6 +372,7 @@ def to_tidy_pgc_dist_rows(identity: LogIdentity, pgc_dist_rows: list[tuple[str, 
                 "prefetcher": identity.prefetcher,
                 "pgc": identity.pgc,
                 "ghr": identity.ghr,
+                "pgc_continuity_check_mode": identity.pgc_continuity_check_mode.value,
                 "signature_region_size": identity.signature_region_size,
                 "workload": identity.workload,
                 "scope": scope,
