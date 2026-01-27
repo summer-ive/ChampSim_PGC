@@ -261,11 +261,6 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
           }
         }
         do_lookahead = 1;
-      } else {
-        count_map["trashed_prefetch_low_confidence"]++;
-        if (PGC_ON && (pf_ppage != trigger_ppage)) {
-          count_map["trashed_pgc_low_confidence"]++;
-        }
       }
     }
     pf_q_head = pf_q_tail;
@@ -312,8 +307,8 @@ void spp_pgc_ideal::prefetcher_final_stats()
   std::cout << "[SPP] l2c prefetch candidate: " << count_map["prefetch_candidate_l2c"] << "\n";
   std::cout << "[SPP] llc prefetch candidate: " << count_map["prefetch_candidate_llc"] << "\n";
 
-  std::cout << "[SPP] trashed prefetch candidates with lower confidence than llc fill threshold: " << count_map["trashed_prefetch_low_confidence"] << "\n";
-  std::cout << "[SPP] trashed pgc candidates with lower confidence than llc fill threshold: " << count_map["trashed_pgc_low_confidence"] << "\n";
+  // std::cout << "[SPP] trashed prefetch candidates with lower confidence than llc fill threshold: " << count_map["trashed_prefetch_low_confidence"] << "\n";
+  // std::cout << "[SPP] trashed pgc candidates with lower confidence than llc fill threshold: " << count_map["trashed_pgc_low_confidence"] << "\n";
 
   std::cout << "[SPP] trashed l2c narrowly defined pgc candidates with virtual address discontinuity: "
             << count_map["trashed_va_discontinuous_narrowly_defined_pgc_l2c"] << "\n";
