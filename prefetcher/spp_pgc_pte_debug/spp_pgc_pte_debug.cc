@@ -409,14 +409,21 @@ uint32_t spp_pgc_pte_debug::prefetcher_cache_operate(uint32_t trigger_cpu, champ
     // Update base_addr and curr_sig
     if (lookahead_way < PT_WAY) {
       uint32_t set = get_hash(curr_sig) % PT_SET;
-      base_paddr += (PT.delta[set][lookahead_way] << LOG2_BLOCK_SIZE);
+      auto lookahead_delta = PT.delta[set][lookahead_way];
+      base_paddr += (lookahead_delta << LOG2_BLOCK_SIZE);
 
       // PT.delta uses a 7-bit sign magnitude representation to generate
       // sig_delta
       // int sig_delta = (PT.delta[set][lookahead_way] < 0) ? ((((-1) *
       // PT.delta[set][lookahead_way]) & 0x3F) + 0x40) :
       // PT.delta[set][lookahead_way];
-      auto sig_delta = (PT.delta[set][lookahead_way] < 0) ? (((-1) * PT.delta[set][lookahead_way]) + (1 << (SIG_DELTA_BIT - 1))) : PT.delta[set][lookahead_way];
+
+      long mag = std::labs((long)lookahead_delta);
+      const long mag_max = (1L << (SIG_DELTA_BIT - 1)) - 1; // 63 when SIG_DELTA_BIT=7
+      if (mag > mag_max)
+        mag = mag_max;
+
+      auto sig_delta = (lookahead_delta < 0) ? (mag | (1L << (SIG_DELTA_BIT - 1))) : mag;
       curr_sig = ((curr_sig << SIG_SHIFT) ^ sig_delta) & SIG_MASK;
     }
 
