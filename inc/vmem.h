@@ -38,6 +38,7 @@ private:
   std::map<std::tuple<uint32_t, uint32_t, champsim::address_slice<champsim::dynamic_extent>>, champsim::address> page_table;
   std::optional<uint64_t> randomization_seed;
   MEMORY_CONTROLLER& dram;
+  constexpr static bool DIRECT_PAGE_ALLOCATION_ON = false;
 
 public:
   const champsim::chrono::clock::duration minor_fault_penalty;
