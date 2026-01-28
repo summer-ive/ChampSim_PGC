@@ -149,7 +149,6 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
       count_map["prefetch_candidate_total"]++;
 
       if (confidence_q[i] >= PF_THRESHOLD) {
-        do_lookahead = 1;
 
         const bool is_prefetch_in_this_level = (confidence_q[i] >= FILL_THRESHOLD);
         if (is_prefetch_in_this_level) {
@@ -262,6 +261,7 @@ uint32_t spp_pgc_ideal::prefetcher_cache_operate(uint32_t trigger_cpu, champsim:
             std::cout << " depth: " << depth << std::endl;
           }
         }
+        do_lookahead = 1;
       }
     }
     pf_q_head = pf_q_tail;
