@@ -11,8 +11,8 @@ NJOBS = 32
 
 # 設定
 BASE_DIR = Path(__file__).parent.parent
-TRACES_DIR = BASE_DIR.parent / "traces" / "dp3_traces"
-FILTER_FILE = BASE_DIR / "utils" / "high_mpki_traces.txt"
+TRACES_DIR = BASE_DIR.parent / "trace" / "dp3_traces"
+FILTER_FILE = BASE_DIR / "util" / "high_mpki_traces.txt"
 LOG_BASE_DIR = BASE_DIR / "log"
 BASE_BIN_PATH = BASE_DIR / "bin"
 CMD_ARGS = ["--warmup-instructions", "200000000", "--simulation-instructions", "500000000"]
