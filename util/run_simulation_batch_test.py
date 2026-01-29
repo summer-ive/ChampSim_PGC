@@ -76,7 +76,7 @@ def main():
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # 一括実行ジョブ作成
-        for trace_file in trace_files:
+        for trace_file in filtered_traces:
             jobs.append((version, trace_file, log_dir))
 
     jobs_count = len(jobs)
