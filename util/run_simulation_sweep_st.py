@@ -17,7 +17,7 @@ LOG_BASE_DIR = BASE_DIR / "log"
 BASE_BIN_PATH = BASE_DIR / "bin"
 CMD_ARGS = ["--warmup-instructions", "200000000", "--simulation-instructions", "500000000"]
 
-SIGNATURE_REGION_SIZES = ["256B", "1KB", "4KB", "16KB", "64KB", "256KB", "1MB", "2MB", "4MB", "16MB", "64MB", "256MB"]
+SIGNATURE_REGION_SIZES = ["256B", "1KB", "4KB", "16KB", "64KB", "256KB", "1MB"]
 
 
 # トレース実行関数
