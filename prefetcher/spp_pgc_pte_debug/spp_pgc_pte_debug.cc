@@ -291,7 +291,9 @@ uint32_t spp_pgc_pte_debug::prefetcher_cache_operate(uint32_t trigger_cpu, champ
             // we see a ST miss (i.e., accessing a new page)
             GHR.update_entry(curr_sig, confidence_q[i], spp_pgc_pte_debug::offset_type{pf_paddr}, delta_q[i]);
           }
-          continue;
+          if (!PGC_ON) {
+            continue;
+          }
         }
 
         // pgc page continuity check
