@@ -301,8 +301,8 @@ def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Pa
         DEFAULT_IDENTITY["prefetcher"],
         DEFAULT_IDENTITY["DPA_ON"],
         DEFAULT_IDENTITY["PGC_ON"],
-        DEFAULT_IDENTITY["GHR_ON"],
         DEFAULT_IDENTITY["PGC_CONTINUITY_CHECK_MODE"],
+        DEFAULT_IDENTITY["GHR_ON"],
         DEFAULT_IDENTITY["REGION_SIZE"],
         DEFAULT_IDENTITY["workload"],
     )
@@ -322,7 +322,9 @@ def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Pa
                 identity.pgc = True
             elif parts[i].lower() == "pgc_off":
                 identity.pgc = False
-        elif parts[i].lower().startswith("pcc_"):  # stands for PGC_CONTINUITY_CHECK
+        elif parts[i].lower().startswith("pcc_") or parts[i].lower().startswith(
+            "pgc_continuity_check_"
+        ):  # stands for PGC_CONTINUITY_CHECK
             mode_str = parts[i].split("_")[-1]
             if mode_str.lower() == "ideal":
                 identity.pgc_continuity_check_mode = PgcContinuityCheckMode.IDEAL
