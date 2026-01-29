@@ -18,9 +18,10 @@ class PgcContinuityCheckMode(Enum):
 
 DEFAULT_IDENTITY = {
     "prefetcher": "unknown_prefetcher",
+    "DPA_ON": False,
     "PGC_ON": False,
-    "GHR_ON": False,
     "PGC_CONTINUITY_CHECK_MODE": PgcContinuityCheckMode.OFF,
+    "GHR_ON": False,
     "REGION_SIZE": "4KB",
     "workload": "unknown_workload",
 }
@@ -33,9 +34,10 @@ DEFAULT_METRICS_OUTPUT_NAME: str = "result_metrics.csv"
 DEFAULT_PGC_DIST_OUTPUT_NAME: str = "result_pgc_distance.csv"
 FIELDS_METRICS = [
     "prefetcher",
+    "dpa",
     "pgc",
-    "ghr",
     "pgc_continuity_check_mode",
+    "ghr",
     "signature_region_size",
     "workload",
     "metric",
@@ -43,9 +45,10 @@ FIELDS_METRICS = [
 ]
 FIELDS_PGC_DISTANCE = [
     "prefetcher",
+    "dpa",
     "pgc",
-    "ghr",
     "pgc_continuity_check_mode",
+    "ghr",
     "signature_region_size",
     "workload",
     "scope",
@@ -285,9 +288,10 @@ def parse_log(log_path: Path) -> tuple[dict[str, Any], list[tuple[str, int, int]
 @dataclass
 class LogIdentity:
     prefetcher: str
+    dpa: bool
     pgc: bool
-    ghr: bool
     pgc_continuity_check_mode: PgcContinuityCheckMode
+    ghr: bool
     signature_region_size: str
     workload: str
 
@@ -295,6 +299,7 @@ class LogIdentity:
 def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Path) -> LogIdentity:
     identity = LogIdentity(
         DEFAULT_IDENTITY["prefetcher"],
+        DEFAULT_IDENTITY["DPA_ON"],
         DEFAULT_IDENTITY["PGC_ON"],
         DEFAULT_IDENTITY["GHR_ON"],
         DEFAULT_IDENTITY["PGC_CONTINUITY_CHECK_MODE"],
@@ -307,7 +312,17 @@ def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Pa
             identity.prefetcher = parts[0] if len(parts) >= 1 else "unknown_prefetcher"
         elif i == len(parts) - 1:
             identity.workload = parsed.get("workload") or "unknown_workload"
-        elif parts[i].lower().startswith("pgc_continuity_check_"):
+        elif parts[i].lower().startswith("dpa_"):  # stands for DIRECT_PAGE_ALLOCATION
+            if parts[i].lower() == "dpa_on":
+                identity.dpa = True
+            elif parts[i].lower() == "dpa_off":
+                identity.dpa = False
+        elif parts[i].lower() in {"pgc_on", "pgc_off"}:
+            if parts[i].lower() == "pgc_on":
+                identity.pgc = True
+            elif parts[i].lower() == "pgc_off":
+                identity.pgc = False
+        elif parts[i].lower().startswith("pcc_"):  # stands for PGC_CONTINUITY_CHECK
             mode_str = parts[i].split("_")[-1]
             if mode_str.lower() == "ideal":
                 identity.pgc_continuity_check_mode = PgcContinuityCheckMode.IDEAL
@@ -315,11 +330,6 @@ def infer_identity_from_path(log_path: Path, parsed: dict[str, Any], log_dir: Pa
                 identity.pgc_continuity_check_mode = PgcContinuityCheckMode.BUFFER
             else:
                 identity.pgc_continuity_check_mode = PgcContinuityCheckMode.OFF
-        elif parts[i].lower() in {"pgc_on", "pgc_off"}:
-            if parts[i].lower() == "pgc_on":
-                identity.pgc = True
-            elif parts[i].lower() == "pgc_off":
-                identity.pgc = False
         elif parts[i].lower() in {"ghr_on", "ghr_off"}:
             if parts[i].lower() == "ghr_on":
                 identity.ghr = True
@@ -352,9 +362,10 @@ def to_tidy_metrics_rows(identity: LogIdentity, metrics: dict[str, Any]) -> list
         rows.append(
             {
                 "prefetcher": identity.prefetcher,
+                "dpa": identity.dpa,
                 "pgc": identity.pgc,
-                "ghr": identity.ghr,
                 "pgc_continuity_check_mode": identity.pgc_continuity_check_mode.value,
+                "ghr": identity.ghr,
                 "signature_region_size": identity.signature_region_size,
                 "workload": identity.workload,
                 "metric": k,
@@ -370,9 +381,10 @@ def to_tidy_pgc_dist_rows(identity: LogIdentity, pgc_dist_rows: list[tuple[str, 
         rows.append(
             {
                 "prefetcher": identity.prefetcher,
+                "dpa": identity.dpa,
                 "pgc": identity.pgc,
-                "ghr": identity.ghr,
                 "pgc_continuity_check_mode": identity.pgc_continuity_check_mode.value,
+                "ghr": identity.ghr,
                 "signature_region_size": identity.signature_region_size,
                 "workload": identity.workload,
                 "scope": scope,
