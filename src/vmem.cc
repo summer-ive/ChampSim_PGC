@@ -56,11 +56,17 @@ VirtualMemory::VirtualMemory(champsim::data::bytes page_table_page_size, std::si
 
 void VirtualMemory::populate_pages()
 {
+  champsim::page_number base_address{0};
   assert(dram.size() > 1_MiB);
-  ppage_free_list.resize(((dram.size() - 1_MiB) / PAGE_SIZE).count());
+
+  if (DIRECT_PAGE_ALLOCATION_ON) {
+    ppage_free_list.resize((dram.size() / PAGE_SIZE).count());
+  } else {
+    ppage_free_list.resize(((dram.size() - 1_MiB) / PAGE_SIZE).count());
+    base_address = champsim::page_number{champsim::lowest_address_for_size(std::max<champsim::data::mebibytes>(champsim::data::bytes{PAGE_SIZE}, 1_MiB))};
+  }
   assert(ppage_free_list.size() != 0);
-  champsim::page_number base_address =
-      champsim::page_number{champsim::lowest_address_for_size(std::max<champsim::data::mebibytes>(champsim::data::bytes{PAGE_SIZE}, 1_MiB))};
+
   for (auto it = ppage_free_list.begin(); it != ppage_free_list.end(); it++) {
     *it = base_address;
     base_address++;
@@ -106,26 +112,54 @@ std::size_t VirtualMemory::available_ppages() const { return (ppage_free_list.si
 
 std::pair<champsim::page_number, champsim::chrono::clock::duration> VirtualMemory::va_to_pa(uint32_t cpu_num, champsim::page_number vpage)
 {
-  auto [ppage_iter, fault] = vpage_to_ppage_map.try_emplace({cpu_num, champsim::page_number{vpage}}, ppage_front());
+  const auto key = std::pair{cpu_num, champsim::page_number{vpage}};
+  if (DIRECT_PAGE_ALLOCATION_ON) {
+    auto ppage_iter = vpage_to_ppage_map.find(key);
+    // vpage is already mapped to a ppage
+    if (ppage_iter != vpage_to_ppage_map.end()) {
+      return std::pair{ppage_iter->second, champsim::chrono::clock::duration::zero()};
+    }
 
-  // this vpage doesn't yet have a ppage mapping
-  if (fault) {
-    ppage_pop();
+    const auto total_ppages = static_cast<uint64_t>((dram.size() / PAGE_SIZE).count());
+    assert(total_ppages != 0);
+    const auto desired_index = vpage.to<uint64_t>() % total_ppages;
+    const champsim::page_number desired_ppage{desired_index};
+
+    auto owner_vpage_iter = ppage_to_vpage_map.find(desired_ppage);
+    if (owner_vpage_iter != ppage_to_vpage_map.end()) {
+      vpage_to_ppage_map.erase({owner_vpage_iter->second.first, owner_vpage_iter->second.second});
+    }
+
+    vpage_to_ppage_map.emplace(key, desired_ppage);
+    ppage_to_vpage_map[desired_ppage] = {cpu_num, champsim::page_number{vpage}};
+
+    if constexpr (champsim::debug_print) {
+      fmt::print("[VMEM] {} paddr: {} vpage: {} fault: {}\n", __func__, desired_ppage, champsim::page_number{vpage}, true);
+    }
+
+    return std::pair{desired_ppage, minor_fault_penalty};
+  } else {
+    auto [ppage_iter, fault] = vpage_to_ppage_map.try_emplace(key, ppage_front());
+    // this vpage doesn't yet have a ppage mapping
+    if (fault) {
+      ppage_pop();
+    }
+
+    auto penalty = fault ? minor_fault_penalty : champsim::chrono::clock::duration::zero();
+
+    if constexpr (champsim::debug_print) {
+      fmt::print("[VMEM] {} paddr: {} vpage: {} fault: {}\n", __func__, ppage_iter->second, champsim::page_number{vpage}, fault);
+    }
+
+    return std::pair{ppage_iter->second, penalty};
   }
-
-  auto penalty = fault ? minor_fault_penalty : champsim::chrono::clock::duration::zero();
-
-  if constexpr (champsim::debug_print) {
-    fmt::print("[VMEM] {} paddr: {} vpage: {} fault: {}\n", __func__, ppage_iter->second, champsim::page_number{vpage}, fault);
-  }
-
-  return std::pair{ppage_iter->second, penalty};
 }
 
 std::pair<champsim::page_number, bool> VirtualMemory::va_to_pa_without_allocation(uint32_t cpu_num, champsim::page_number vpage)
 {
   bool is_allocated = true;
-  auto ppage_iter = vpage_to_ppage_map.find({cpu_num, champsim::page_number{vpage}});
+  const auto key = std::pair{cpu_num, champsim::page_number{vpage}};
+  auto ppage_iter = vpage_to_ppage_map.find(key);
   if (ppage_iter == vpage_to_ppage_map.end()) {
     is_allocated = false;
     return std::pair{champsim::page_number{}, is_allocated};
