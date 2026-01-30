@@ -9,6 +9,7 @@
 #include "chrono.h"
 #include "modules.h"
 #include "msl/lru_table.h"
+#include "util/bits.h"
 #include "vmem.h"
 
 struct spp_pgc_pte : public champsim::modules::prefetcher {
@@ -58,15 +59,16 @@ struct spp_pgc_pte : public champsim::modules::prefetcher {
   constexpr static std::size_t MAX_GHR_ENTRY = 8;
 
   // map to keep the translation data by cached ptes
-  constexpr static std::size_t PTE_BUFFER_SET = 1; // PTE buffer is fully associative
-  constexpr static std::size_t PTE_BUFFER_WAY = 128;
+  constexpr static std::size_t PTE_BUFFER_SET = 32;
+  constexpr static std::size_t PTE_BUFFER_WAY = 8;
+  constexpr static std::size_t PTE_BUFFER_SET_SHIFT = champsim::lg2(PTE_BUFFER_SET);
   struct pte_buffer_entry {
     champsim::page_number ppage{0}; // key
     champsim::page_number vpage{0}; // value
     bool is_valid = false;
 
-    auto index() const { return champsim::page_number{0}; }
-    auto tag() const { return ppage; }
+    auto index() const { return ppage.to<uint64_t>() & (PTE_BUFFER_SET - 1); }
+    auto tag() const { return ppage.to<uint64_t>() >> PTE_BUFFER_SET_SHIFT; }
   };
   struct pte_buffer_type : champsim::msl::lru_table<pte_buffer_entry> {
     pte_buffer_type() : champsim::msl::lru_table<pte_buffer_entry>(PTE_BUFFER_SET, PTE_BUFFER_WAY) {}
