@@ -9,6 +9,9 @@ from typing import Any, Iterable
 import argparse
 from enum import Enum
 
+BASE_DIR = Path(__file__).parent.parent
+EXCLUSION_FILE = BASE_DIR / "util" / "exclusion_traces.txt"
+
 
 class PgcContinuityCheckMode(Enum):
     OFF = "off"
@@ -428,6 +431,9 @@ def main() -> None:
     log_dir = default_input_dir
     out_metrics_csv: Path = DEFAULT_OUTPUT_DIR / DEFAULT_METRICS_OUTPUT_NAME
     out_pgc_dist_csv: Path = DEFAULT_OUTPUT_DIR / DEFAULT_PGC_DIST_OUTPUT_NAME
+    with open(EXCLUSION_FILE, "r", encoding="utf-8") as f:
+        exclusion_set: set[str] = set(line.strip() for line in f.readlines())
+
     print("[INFO] Processing logs...")
 
     if is_batch_mode:
@@ -456,6 +462,9 @@ def main() -> None:
                     continue
 
                 identity = infer_identity_from_path(log_path, parsed_metrics, log_dir)
+                if identity.workload in exclusion_set:
+                    skipped_logs.append(log_path)
+                    continue
                 metrics_rows = to_tidy_metrics_rows(identity, parsed_metrics)
                 pgc_dist_rows = to_tidy_pgc_dist_rows(identity, parsed_pgc_dist_rows)
                 all_metrics_rows.extend(metrics_rows)
@@ -500,6 +509,10 @@ def main() -> None:
                 continue
 
             identity = infer_identity_from_path(log_path, parsed_metrics, log_dir)
+            if identity.workload in exclusion_set:
+                skipped_logs.append(log_path)
+                continue
+
             metrics_rows = to_tidy_metrics_rows(identity, parsed_metrics)
             pgc_dist_rows = to_tidy_pgc_dist_rows(identity, parsed_pgc_dist_rows)
             all_metrics_rows.extend(metrics_rows)

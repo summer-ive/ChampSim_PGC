@@ -13,6 +13,7 @@ NJOBS = 32
 BASE_DIR = Path(__file__).parent.parent
 TRACES_DIR = BASE_DIR.parent / "trace" / "dp3_traces"
 FILTER_FILE = BASE_DIR / "util" / "high_mpki_traces.txt"
+EXCLUSION_FILE = BASE_DIR / "util" / "exclusion_traces.txt"
 LOG_BASE_DIR = BASE_DIR / "log"
 BASE_BIN_PATH = BASE_DIR / "bin"
 CMD_ARGS = ["--warmup-instructions", "200000000", "--simulation-instructions", "500000000"]
@@ -47,11 +48,14 @@ def main():
 
     # フィルター取得
     with open(FILTER_FILE, "r", encoding="utf-8") as f:
-        trace_filter: set[str] = set(line.strip() for line in f.readlines())
+        trace_filter: set[str] = set(line.strip() + ".champsimtrace" for line in f.readlines())
+
+    with open(EXCLUSION_FILE, "r", encoding="utf-8") as f:
+        exclusion_set: set[str] = set(line.strip() + ".champsimtrace" for line in f.readlines())
 
     for _ in range(len(trace_files)):
         trace_file = trace_files.popleft()
-        if trace_file.stem in trace_filter:
+        if trace_file.stem in trace_filter and trace_file.stem not in exclusion_set:
             trace_files.append(trace_file)
 
     jobs = []
