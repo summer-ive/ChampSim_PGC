@@ -8,9 +8,10 @@
 void spp_pgc_ideal::prefetcher_initialize()
 {
   std::cout << "Prefetcher: spp_pgc_ideal" << std::endl;
-  std::cout << "PGC enabled: " << (PGC_ON ? "true" : "false") << std::endl;
+  std::cout << "PGC ON: " << (PGC_ON ? "true" : "false") << std::endl;
+  std::cout << "PGC CONTINUITY CHECK ON: " << (PGC_CONTINUITY_CHECK_ON ? "true" : "false") << std::endl;
   std::cout << "GHR ON: " << (GHR_ON ? "true" : "false") << std::endl;
-  std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
+  std::cout << "ST_UNIT: 2^" << SIG_UNIT_BIT << " [Byte]\n";
   std::cout << "Initialize SIGNATURE TABLE" << std::endl;
   std::cout << "ST_SET: " << ST_SET << std::endl;
   std::cout << "ST_WAY: " << ST_WAY << std::endl;

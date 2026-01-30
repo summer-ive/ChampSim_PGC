@@ -8,12 +8,13 @@
 void spp_pgc_pte::prefetcher_initialize()
 {
   std::cout << "Prefetcher: spp_pgc_pte" << std::endl;
-  std::cout << "PGC enabled: " << (PGC_ON ? "true" : "false") << std::endl;
+  std::cout << "PGC ON: " << (PGC_ON ? "true" : "false") << std::endl;
+  std::cout << "PGC CONTINUITY CHECK ON: " << (PGC_CONTINUITY_CHECK_ON ? "true" : "false") << std::endl;
+  std::cout << "FORCE_PTE_CACHING_ON: " << (FORCE_PTE_CACHING_ON ? "true" : "false") << std::endl;
   std::cout << "GHR ON: " << (GHR_ON ? "true" : "false") << std::endl;
-  std::cout << "Force PTE caching: " << (FORCE_PTE_CACHING_ON ? "true" : "false") << std::endl;
-  std::cout << "[SPP] signature-table unit size: 2^" << SIG_UNIT_BIT << " [Byte]\n";
-  std::cout << "[SPP] PTE buffer set size: " << PTE_BUFFER_SET << std::endl;
-  std::cout << "[SPP] PTE buffer way size: " << PTE_BUFFER_WAY << std::endl;
+  std::cout << "ST_UNIT: 2^" << SIG_UNIT_BIT << " [Byte]\n";
+  std::cout << "PTE_BUFFER_SET: " << PTE_BUFFER_SET << std::endl;
+  std::cout << "PTE_BUFFER_WAY: " << PTE_BUFFER_WAY << std::endl;
   std::cout << "Initialize SIGNATURE TABLE" << std::endl;
   std::cout << "ST_SET: " << ST_SET << std::endl;
   std::cout << "ST_WAY: " << ST_WAY << std::endl;
