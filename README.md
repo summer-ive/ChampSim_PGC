@@ -31,6 +31,21 @@ ChampSim takes a JSON configuration script. Examine `champsim_config.json` for a
 
 ```
 $ ./config.sh <configuration file>
+```
+
+This ChampSim fork is modified to use `VirtualMemory` instance inside the prefetcher to simulate oracle-like system to check the continuity of page address between virtual page space and physical page space. Currently, config workflow hasn't been modified to adapt this change. So, you have to edit `.csconfig/core_inst.inc` as follows in order to compile without error.
+
+```
+~~~
+public:
+vmem VirtualMemory
+private:
+~~~
+```
+
+Then, do compile by `make` command.
+
+```
 $ make
 ```
 
@@ -95,99 +110,3 @@ ChampSim measures the IPC (Instruction Per Cycle) value as a performance metric.
 There are some other useful metrics printed out at the end of simulation. <br>
 
 Good luck and be a champion! <br>
-
-# 実行手順
-
-Compile の章 -> Run simulation の章で実行すれば良い。
-
-# Docker コマンド
-
-まず Dockerfile を作成し、基本構成がセットアップされるよう記述する。
-現在は下記の設定で Dockerfile を構成し、ChampSim 等はサーバー上にクローンしたものをコンテナにマウントする形で運用している。
-
-```
-FROM debian:stable
-
-# Install your favorite packages
-# -qq: No output except for errors
-RUN apt-get update && \
-    # https://anonoz.github.io/tech/2020/04/24/docker-build-stuck-tzdata.html
-    # Ubuntu 22.04 doesn't need the two lines below
-    DEBIAN_FRONTEND=noninteractive \
-    TZ=Asia/Tokyo \
-    apt-get --yes -qq install \
-      build-essential \
-      git \
-      cmake \
-      python3 \
-      python3-pip \
-      xz-utils \
-      wget \
-      make \
-      curl \
-      unzip \
-      zip \
-      tar \
-      parallel \
-      pkg-config && \
-    rm -rf /var/lib/apt/lists/*
-
-# User/group names/ids which will be overwritten: https://stackoverflow.com/a/44683248
-ARG UNAME
-ARG GNAME
-ARG UID
-ARG GID
-RUN groupadd -g $GID -o $GNAME
-# Add a user
-RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
-
-# Set the user (for subsequent commands)
-USER $UNAME
-
-# Set the working directory (for subsequent commands)
-WORKDIR /home/$UNAME
-
-# Run when the container launches
-CMD ["/bin/bash"]
-```
-
-したらば Docker イメージを作成。
-ホストマシンのファイルは後でマウントする。したがって処理を軽量化するためにビルドコンテキストは dockerfile が入っているディレクトリに指定している。
-
-```
-docker build --build-arg UNAME=$(id -un) --build-arg GNAME=$(id -gn) --build-arg UID=$(id -u) --build-arg GID=$(id -g) -t "$(id -un):champsim-pgc.yyyymmdd" -f /home/caras/summerive/dockerfiles/Dockerfile /home/caras/summerive/dockerfiles
-```
-
-Docker イメージからコンテナを立ち上げる。
-`docker run -it --rm \
-  --mount type=bind,source="/home/caras/summerive/ChampSim",target="/home/$(id -un)/ChampSim" \
-  --mount type=bind,source="/srv/public/champsim",target="/home/$(id -un)/traces" \
-  summerive:champsim-pgc.yyyymmdd`
-
-## ポイント
-
-- `make`よりも`make -j$(nproc)`のほうが並列実行できて早い。(多分)
-- `make`でエラーが発生したときは、原因を解決した上で`make clean`を実行してから再度`make`する。
-
-# 変更点
-
-- prefetcher フォルダに signature_path を追加。
-- spp の実装で main 関数があるとシミュレータ実行でエラーを吐くので、main 関数を全てコメントアウトした。
-
-# プリフェッチャの解説
-
-- 矢野さんの Slack では SPP の実装にバグがあるとのこと。具体的な内容は不明。
-  - 古いバージョンの ChampSim における spp_dev ファイルであるため、現存するバグであるかは不明。
-- spp_dev_pgc は PGC を一律で全許可する SPP。
-- spp_dev_pgc_adj は、PGC を実行する際に、PGC 先のページが仮想アドレス上で連続するかを確認し、連続性が確認できた場合のみ PGC を実行するもの。
-  - 現在実装中。
-  - 本来は理想的なシミュレーションに際してこの機能が必要。
-    - むやみに全てプリフェッチさせるのはキャッシュ汚染の元になり IPC をむしろ低下させる。
-  - ChampSim が仮想アドレスと物理アドレスのマッピングをどのようにシミュレートしているかを調べる必要がある。
-    - トレースには物理アドレスのアクセス情報しか載っていない？この LLM の回答が正しいか要検証。
-- spp_dev_pgc_grain は、SPP 標準の Signature Table のシグネチャ管理粒度が 4KB なので、このサイズを変更することができるようにしている。
-
-# メモ
-
-- ChampSim の実装は提案論文である"The Championship Simulator: Architectural Simulation for Education and Competition"にある程度記されているため、シミュレータを使う前にこちらを参照するのが懸命かもしれない。
-- オリジナルの config は、デフォルトの champsim_config.json を適切にオーバーライドするように書く。
